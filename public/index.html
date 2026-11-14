@@ -1,0 +1,443 @@
+<!doctype html>
+<!-- SPDX-FileCopyrightText: Copyright (c) 2026 Silicon Laboratories Inc. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zephyr Review Capacity</title>
+<style>
+:root {
+  --bg: #f4f6f9; --surface: #ffffff; --ink: #131820; --ink-2: #485262; --ink-3: #6f7a8b;
+  --rule: #dde2ea; --track: #e6eaf0; --accent: #2a78d6; --accent-ink: #1c5cab;
+  --series-2: #eb6834; --below: #b8c0cc; --warn-bg: #fff4d6; --warn-ink: #6b4a00;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #101318; --surface: #181c23; --ink: #eceff4; --ink-2: #b6bdc9; --ink-3: #8690a0;
+    --rule: #2a303a; --track: #252b35; --accent: #3987e5; --accent-ink: #86b6ef;
+    --series-2: #d95926; --below: #4a5261; --warn-bg: #3a2f10; --warn-ink: #f0d58a;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 400 16px/1.55 var(--font); padding: 32px 16px 64px; }
+main { max-width: 1000px; margin: 0 auto; display: flex; flex-direction: column; gap: 40px; }
+header, section { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+h1 { font-size: clamp(28px, 5vw, 40px); line-height: 1.15; margin: 0; letter-spacing: -0.01em; }
+h2 { font-size: 24px; line-height: 1.2; margin: 0; }
+h3 { font-size: 17px; margin: 0; }
+p { margin: 0; max-width: 70ch; }
+a { color: var(--accent-ink); text-underline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.kicker { font: 500 12px/1.3 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+.lede { font-size: 18px; color: var(--ink-2); }
+.note { font-size: 14px; color: var(--ink-3); }
+.warn { background: var(--warn-bg); color: var(--warn-ink); border-radius: 6px; padding: 10px 14px; font-size: 14px; max-width: none; }
+.panel { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 20px; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.controls { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: flex-end; }
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.field > label, .field > span { font: 500 12px/1.3 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); }
+select, input[type="date"], input[type="search"] { font: 500 15px var(--font); color: var(--ink); background: var(--surface); border: 1px solid var(--rule); border-radius: 4px; padding: 8px 10px; max-width: 100%; }
+#area { min-width: min(320px, 100%); }
+.seg { display: flex; flex-wrap: wrap; border: 1px solid var(--rule); border-radius: 4px; overflow: hidden; }
+.seg button { font: 500 14px var(--font); color: var(--ink-2); background: var(--surface); border: 0; border-right: 1px solid var(--rule); padding: 8px 12px; cursor: pointer; }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+.checks { display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--ink-2); }
+.checks label { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
+.checks input { margin-top: 3px; accent-color: var(--accent); }
+.line-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.line-value { font: 500 44px/1 var(--mono); font-variant-numeric: tabular-nums; }
+.line-head label { font-size: 15px; color: var(--ink-2); }
+input[type="range"] { width: 100%; accent-color: var(--accent); height: 28px; margin: 0; }
+.verdict { font-size: 17px; max-width: 72ch; }
+.names { font-family: var(--mono); font-size: 15px; }
+.row { display: grid; grid-template-columns: 190px minmax(110px, 1fr) 56px 176px 80px 100px; gap: 14px; align-items: center; padding: 10px 0; border-top: 1px solid var(--rule); min-width: 0; }
+.row.head { border-top: 0; padding: 0 0 8px; font: 500 11px/1.3 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); align-items: end; }
+.row .r { text-align: right; }
+.who { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.who a { font: 500 15px var(--mono); color: var(--ink); text-decoration: none; overflow-wrap: anywhere; }
+.who a:hover { text-decoration: underline; }
+.role { font: 500 10px var(--mono); letter-spacing: 0.06em; color: var(--ink-3); border: 1px solid var(--rule); border-radius: 3px; padding: 1px 5px; }
+.bar { position: relative; height: 12px; background: var(--track); border-radius: 0 4px 4px 0; }
+.bar i { position: absolute; inset: 0 auto 0 0; background: var(--accent); border-radius: 0 4px 4px 0; }
+.bar b { position: absolute; top: -5px; bottom: -5px; width: 2px; background: var(--ink); transform: translateX(-1px); }
+.row.below .bar i, .row.thin .bar i { background: var(--below); }
+.row.below .who a, .row.below .rate { color: var(--ink-3); }
+.row.below .who a { text-decoration: line-through; text-decoration-thickness: 1px; }
+.rate { font: 500 17px var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
+.cell { font: 400 14px var(--mono); font-variant-numeric: tabular-nums; color: var(--ink-2); text-align: right; white-space: nowrap; }
+.cell small { display: none; font: 400 11px var(--font); color: var(--ink-3); margin-right: 5px; }
+@media (max-width: 820px) {
+  .row { grid-template-columns: 1fr auto; gap: 6px 12px; }
+  .row.head { display: none; }
+  .row .who { grid-row: 1; grid-column: 1; }
+  .row .rate { grid-row: 1; grid-column: 2; }
+  .row .bar { grid-row: 2; grid-column: 1 / -1; }
+  .row .meta { grid-row: 3; grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+  .cell { text-align: left; }
+  .cell small { display: inline; }
+}
+@media (min-width: 821px) { .row .meta { display: contents; } }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+.tile { padding: 16px 16px 16px 0; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.tile .v { font: 500 30px/1.1 var(--mono); font-variant-numeric: tabular-nums; }
+.tile .l { font-size: 14px; color: var(--ink-2); }
+.tile .s { font-size: 12px; color: var(--ink-3); }
+.chart-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 20px; align-items: baseline; }
+.legend { display: flex; gap: 16px; font-size: 13px; color: var(--ink-2); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+.chart { position: relative; width: 100%; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart text { font: 400 11px var(--mono); fill: var(--ink-3); }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--surface); font: 400 12px/1.5 var(--mono); padding: 7px 10px; border-radius: 4px; white-space: nowrap; z-index: 5; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 8px 12px 8px 0; border-top: 1px solid var(--rule); }
+thead th { border-top: 0; font: 500 11px/1.3 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); }
+td.n, th.n { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.login { font-family: var(--mono); }
+ul.plain { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; max-width: 72ch; font-size: 14px; color: var(--ink-2); }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div class="kicker" id="stamp">Loading</div>
+  <h1>Zephyr review capacity</h1>
+  <p class="lede">Who answers when a pull request asks for review, area by area. Pick an area and a period, then move the line to see who would stay on the list at that level of participation.</p>
+  <p class="warn" id="coverage" hidden></p>
+</header>
+
+<section>
+  <div class="panel">
+    <div class="controls">
+      <div class="field"><label for="filter">Find an area</label><input type="search" id="filter" placeholder="Type to narrow the list"></div>
+      <div class="field"><label for="area">Area</label><select id="area"></select></div>
+    </div>
+    <div class="controls">
+      <div class="field"><span>Period</span><div class="seg" id="presets" role="group" aria-label="Period"></div></div>
+      <div class="field"><label for="from">From</label><input type="date" id="from"></div>
+      <div class="field"><label for="to">To (inclusive)</label><input type="date" id="to"></div>
+    </div>
+    <div class="controls">
+      <div class="checks">
+        <label><input type="checkbox" id="opt-comment" checked> A comment counts as taking part, not only a review</label>
+        <label><input type="checkbox" id="opt-excuse" checked> Excuse a miss when the pull request closed within a week or two others approved within a week</label>
+        <label><input type="checkbox" id="opt-own"> Leave out pull requests that also carry an area the person maintains</label>
+      </div>
+      <div class="field"><label for="skip-author">Leave out pull requests by</label><select id="skip-author"></select></div>
+    </div>
+    <div>
+      <div class="line-head">
+        <output class="line-value" id="line-out" for="line">10%</output>
+        <label for="line">of the pull requests they were asked to review. Below this, a Collaborator would come off the list.</label>
+      </div>
+      <input type="range" id="line" min="0" max="100" step="1" value="10">
+    </div>
+    <p class="verdict" id="verdict"></p>
+    <div id="roster"></div>
+    <p class="note" id="area-note"></p>
+    <p class="note" id="unlisted"></p>
+  </div>
+</section>
+
+<section>
+  <h2>Flow through the area</h2>
+  <div class="tiles" id="tiles"></div>
+  <div class="panel">
+    <div class="chart-head"><h3>Opened and merged per week</h3>
+      <div class="legend"><span><i style="background:var(--accent)"></i>Opened</span><span><i style="background:var(--series-2)"></i>Merged</span></div></div>
+    <div class="chart" id="chart"></div>
+  </div>
+  <div class="panel">
+    <h3>Who brings review work and who gives it</h3>
+    <p class="note">The ten people who brought the most pull requests to review in this area and period. A merged pull request needs at least two approvals from others, so anyone under 2.0 in the last column takes more review out than they put in.</p>
+    <div class="scroll"><table id="balance"></table></div>
+  </div>
+</section>
+
+<section>
+  <h2>How this is counted</h2>
+  <ul class="plain">
+    <li>An area is a section of MAINTAINERS.yml; its pull requests are those carrying the area's own label. Areas that share a label share their pull requests.</li>
+    <li>A request counts once per person and pull request, on the day of the first request. It counts as answered when the person reviews at or after the request and before the end of the period, or comments if that option is on.</li>
+    <li>Not counted for or against anyone: the person's own pull requests, requests withdrawn without an answer, pull requests closed with less than three ready days after the request, and open ones with less than seven ready days since the request. Draft time is not ready time.</li>
+    <li>With the excuse option on, a miss is also not counted when the pull request closed within seven days of the request or two other people had approved it within seven days.</li>
+    <li>People with fewer than five countable requests are not judged. The line never takes a Maintainer off.</li>
+    <li>Approved counts the pull requests the person first approved in the period, asked or not. Bot accounts are left out everywhere.</li>
+    <li>A period that includes a holiday season lowers everyone's rate. Compare like with like before drawing a conclusion about a person.</li>
+    <li>The numbers come from public GitHub data and are refreshed by a script; see the <a id="repo-link" href="https://github.com/jhedberg/zephyr-review-capacity">source</a> for the exact rules.</li>
+  </ul>
+</section>
+</main>
+<div class="tip" id="tip" hidden></div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const DAY = 1440, MIN_REQ = 5;
+const pc = (x) => x == null ? "n/a" : Math.round(x * 100) + "%";
+const f1 = (x) => x == null || !isFinite(x) ? "n/a" : (Math.round(x * 10) / 10).toString();
+const iso = (min) => new Date(min * 60000).toISOString().slice(0, 10);
+const toMin = (date) => Math.floor(Date.parse(date + "T00:00:00Z") / 60000);
+const median = (v) => { if (!v.length) return null; v = v.slice().sort((a, b) => a - b); const m = v.length >> 1; return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2; };
+const profile = (login) => { const a = el("a", null, login); a.href = "https://github.com/" + login; a.target = "_blank"; a.rel = "noopener"; return a; };
+const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+let INDEX = null, AREA = null;
+const params = new URLSearchParams(location.search);
+const state = {
+  area: params.get("area") || "Bluetooth Host",
+  from: params.get("from"), to: params.get("to"), days: +(params.get("days") || 90),
+  line: params.has("line") ? +params.get("line") : 10,
+  comment: params.get("comment") !== "0", excuse: params.get("excuse") !== "0",
+  own: params.get("own") === "1", skip: params.get("skip") || "",
+};
+
+function remember() {
+  const p = new URLSearchParams();
+  p.set("area", state.area);
+  if (state.days) { p.set("days", state.days); } else { p.set("from", state.from); p.set("to", state.to); }
+  p.set("line", state.line);
+  if (!state.comment) p.set("comment", "0");
+  if (!state.excuse) p.set("excuse", "0");
+  if (state.own) p.set("own", "1");
+  if (state.skip) p.set("skip", state.skip);
+  history.replaceState(null, "", "?" + p.toString());
+}
+
+function range() {
+  const end = Math.floor(INDEX.now / DAY) * DAY + DAY;
+  if (state.days) { return [end - state.days * DAY, end]; }
+  return [toMin(state.from), toMin(state.to) + DAY];
+}
+
+async function loadArea(name) {
+  const entry = INDEX.areas.find((a) => a.name === name) || INDEX.areas[0];
+  state.area = entry.name;
+  AREA = await (await fetch("data/" + entry.file)).json();
+  AREA.roster = new Set(AREA.maintainers.concat(AREA.collaborators));
+  render();
+}
+
+function fillAreas(filter) {
+  const sel = $("area"); sel.textContent = "";
+  const words = filter.toLowerCase().split(/\s+/).filter(Boolean);
+  INDEX.areas.filter((a) => words.every((w) => a.name.toLowerCase().includes(w)) || a.name === state.area)
+    .forEach((a) => { const o = el("option", null, a.name); o.value = a.name; sel.appendChild(o); });
+  sel.value = state.area;
+}
+
+function counted(ask, F, T, skipIdx) {
+  const [, row, asked, reviewed, commented, flags] = ask;
+  if (asked < F || asked >= T) return null;
+  if (skipIdx >= 0 && AREA.prs[row][1] === skipIdx) return null;
+  if (state.own && (flags & 16)) return null;
+  const answered = (reviewed && reviewed < T) || (state.comment && commented && commented < T);
+  if (!answered) {
+    if (flags & 7) return null;
+    if (T - asked < 7 * DAY && !AREA.prs[row][5]) return null;
+    if (state.excuse && (flags & 8)) return null;
+  }
+  return answered ? 1 : 0;
+}
+
+function render() {
+  remember();
+  const [F, T] = range();
+  const weeks = (T - F) / (7 * DAY);
+  $("from").value = iso(F); $("to").value = iso(T - DAY);
+  $("line-out").textContent = state.line + "%";
+  $("line").value = state.line;
+  for (const b of $("presets").children) b.setAttribute("aria-pressed", String(+b.dataset.days === state.days));
+  const L = AREA.logins, P = AREA.prs;
+
+  /* authors by number of requests they caused, for the "leave out" choice */
+  const perAuthor = new Map();
+  for (const a of AREA.asks) { if (a[2] >= F && a[2] < T) { const w = P[a[1]][1]; perAuthor.set(w, (perAuthor.get(w) || 0) + 1); } }
+  const totalAsks = [...perAuthor.values()].reduce((x, y) => x + y, 0);
+  const top = [...perAuthor.entries()].sort((x, y) => y[1] - x[1]).slice(0, 5);
+  const skipSel = $("skip-author"); skipSel.textContent = "";
+  const none = el("option", null, "nobody"); none.value = ""; skipSel.appendChild(none);
+  for (const [w, n] of top) { if (w < 0) continue; const o = el("option", null, L[w] + " (" + pc(n / totalAsks) + " of requests)"); o.value = L[w]; skipSel.appendChild(o); }
+  if (state.skip && ![...skipSel.options].some((o) => o.value === state.skip)) { const o = el("option", null, state.skip); o.value = state.skip; skipSel.appendChild(o); }
+  skipSel.value = state.skip;
+  const skipIdx = state.skip ? L.indexOf(state.skip) : -1;
+
+  /* per person */
+  const stat = new Map();
+  const get = (i) => { if (!stat.has(i)) stat.set(i, { req: 0, num: 0, approved: 0, reviewed: 0, last: 0 }); return stat.get(i); };
+  const perPr = new Map();
+  for (const a of AREA.asks) {
+    const c = counted(a, F, T, skipIdx);
+    if (c == null) continue;
+    const s = get(a[0]); s.req++; s.num += c;
+    perPr.set(a[1], (perPr.get(a[1]) || 0) + c);
+  }
+  for (const r of AREA.revs) {
+    const s = get(r[0]);
+    if (r[2] >= F && r[2] < T) s.reviewed++;
+    if (r[3] >= F && r[3] < T) s.approved++;
+    if (r[4] > s.last) s.last = r[4];
+  }
+
+  /* roster */
+  const box = $("roster"); box.textContent = "";
+  const head = el("div", "row head");
+  ["Listed", "Share of requests answered", "", "Answered", "Approved", "Last review"].forEach((t, i) => head.appendChild(el("div", i > 1 ? "r" : null, t)));
+  box.appendChild(head);
+  const people = AREA.maintainers.map((w) => [w, "M"]).concat(AREA.collaborators.map((w) => [w, "C"]))
+    .map(([w, role]) => { const s = get(L.indexOf(w)); return { w, role, s, rate: s.req ? s.num / s.req : null }; })
+    .sort((a, b) => (b.rate == null ? -1 : b.rate) - (a.rate == null ? -1 : a.rate));
+  const keep = [], drop = [], thin = []; let lost = 0;
+  for (const p of people) {
+    const few = p.s.req < MIN_REQ, ok = p.rate != null && p.rate * 100 >= state.line, isM = p.role === "M";
+    const row = el("div", "row" + (few ? " thin" : (!ok && !isM ? " below" : "")));
+    const who = el("div", "who"); who.appendChild(profile(p.w)); who.appendChild(el("span", "role", isM ? "MAINT" : "COLLAB")); row.appendChild(who);
+    const bar = el("div", "bar"), fill = el("i"), mark = el("b");
+    fill.style.width = (p.rate == null ? 0 : Math.max(p.rate * 100, 0.8)) + "%"; mark.style.left = state.line + "%";
+    bar.appendChild(fill); bar.appendChild(mark); bar.setAttribute("role", "img"); bar.setAttribute("aria-label", p.w + " answered " + pc(p.rate) + " of requests");
+    row.appendChild(bar); row.appendChild(el("div", "rate", few ? "n/a" : pc(p.rate)));
+    const meta = el("div", "meta");
+    const cell = (label, text) => { const c = el("div", "cell"); c.appendChild(el("small", null, label)); c.appendChild(document.createTextNode(text)); meta.appendChild(c); };
+    cell("answered", p.s.num + " of " + p.s.req + " · " + f1(p.s.num / weeks) + "/wk");
+    cell("approved", String(p.s.approved));
+    cell("last review", p.s.last ? iso(p.s.last) : "never");
+    row.appendChild(meta); box.appendChild(row);
+    if (isM) continue;
+    if (few) thin.push(p.w); else if (ok) keep.push(p.w); else { drop.push(p.w); lost += p.s.approved; }
+  }
+  const v = $("verdict"); v.textContent = "";
+  const say = (t) => v.appendChild(document.createTextNode(t));
+  const names = (a) => v.appendChild(el("span", "names", a.length ? a.join(", ") : "nobody"));
+  if (!AREA.collaborators.length) { say("This area lists no Collaborators."); }
+  else {
+    say("At " + state.line + "%, " + keep.length + " of " + (keep.length + drop.length) + " Collaborators stay: "); names(keep); say(". ");
+    if (drop.length) { say("Below the line: "); names(drop); say(". In this period they approved " + lost + " pull requests here. "); }
+    if (thin.length) { say("Not judged, fewer than " + MIN_REQ + " requests: "); names(thin); say("."); }
+  }
+
+  /* area note and unlisted reviewers */
+  const answers = [...perPr.values()];
+  const mean = answers.length ? answers.reduce((x, y) => x + y, 0) / answers.length : null;
+  $("area-note").textContent = answers.length
+    ? answers.length + " pull requests asked the list for review in this period. On average " + f1(mean) + " of the people asked took part."
+    : "No pull request asked the list for review in this period.";
+  const unlisted = [...stat.entries()].filter(([i, s]) => !AREA.roster.has(L[i]) && s.reviewed > 0).sort((a, b) => b[1].reviewed - a[1].reviewed).slice(0, 6);
+  const u = $("unlisted"); u.textContent = "";
+  if (unlisted.length) {
+    u.appendChild(document.createTextNode("Most active reviewers not on this list: "));
+    unlisted.forEach(([i, s], k) => { if (k) u.appendChild(document.createTextNode(", ")); u.appendChild(profile(L[i])); u.appendChild(document.createTextNode(" (" + s.reviewed + ")")); });
+  }
+
+  /* flow */
+  const opened = P.filter((p) => p[2] >= F && p[2] < T), merged = P.filter((p) => p[4] >= F && p[4] < T);
+  const toReview = P.filter((p) => p[3] >= F && p[3] < T && p[6]).map((p) => Math.max(0, p[6] - p[3]) / DAY);
+  const toMerge = merged.filter((p) => p[3]).map((p) => Math.max(0, p[4] - p[3]) / DAY);
+  const tiles = $("tiles"); tiles.textContent = "";
+  [[f1(opened.length / weeks), "opened a week", opened.length + " in the period"],
+   [f1(merged.length / weeks), "merged a week", merged.length + " in the period"],
+   [toReview.length ? f1(median(toReview)) + " d" : "n/a", "ready to first review, median", toReview.length + " pull requests"],
+   [toMerge.length ? f1(median(toMerge)) + " d" : "n/a", "ready to merged, median", toMerge.length + " pull requests"],
+   [f1(mean), "listed people answering per pull request", "of those asked"]]
+    .forEach(([val, label, sub]) => { const t = el("div", "tile"); t.appendChild(el("div", "v", val)); t.appendChild(el("div", "l", label)); t.appendChild(el("div", "s", sub)); tiles.appendChild(t); });
+  const buckets = [];
+  for (let t = F; t < T; t += 7 * DAY) buckets.push({ start: t, opened: 0, merged: 0 });
+  const slot = (t) => buckets[Math.floor((t - F) / (7 * DAY))];
+  opened.forEach((p) => slot(p[2]).opened++); merged.forEach((p) => slot(p[4]).merged++);
+  drawChart(buckets);
+
+  /* who brings and who gives */
+  const give = new Map();
+  for (const [i, s] of stat) give.set(i, s.approved);
+  const bring = new Map();
+  for (const p of P) {
+    if (p[1] < 0) continue;
+    const b = bring.get(p[1]) || { brought: 0, merged: 0 };
+    if (p[3] >= F && p[3] < T) b.brought++;
+    if (p[4] >= F && p[4] < T) b.merged++;
+    bring.set(p[1], b);
+  }
+  const rows = [...bring.entries()].filter(([, b]) => b.brought).sort((a, b) => b[1].brought - a[1].brought).slice(0, 10);
+  const t = $("balance"); t.textContent = "";
+  const th = el("thead"), hr = el("tr");
+  [["Author", ""], ["Brought to review", "n"], ["Merged", "n"], ["Approved for others", "n"], ["Approvals given per PR brought", "n"]].forEach(([h, c]) => hr.appendChild(el("th", c, h)));
+  th.appendChild(hr); t.appendChild(th);
+  const tb = el("tbody");
+  for (const [i, b] of rows) {
+    const tr = el("tr"), who = el("td", "login"); who.appendChild(profile(L[i])); tr.appendChild(who);
+    const g = give.get(i) || 0;
+    [b.brought, b.merged, g, f1(g / b.brought)].forEach((x) => tr.appendChild(el("td", "n", String(x))));
+    tb.appendChild(tr);
+  }
+  t.appendChild(tb);
+}
+
+/* weekly columns */
+const NS = "http://www.w3.org/2000/svg";
+const svg = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+let lastBuckets = [];
+function drawChart(buckets) {
+  lastBuckets = buckets;
+  const host = $("chart"); host.textContent = "";
+  const W = host.clientWidth || 600, H = Math.max(200, Math.min(280, W * 0.38)), m = { l: 34, r: 8, t: 12, b: 24 };
+  const s = svg("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "Pull requests opened and merged per week" }, host);
+  const peak = Math.max(1, ...buckets.map((b) => Math.max(b.opened, b.merged)));
+  const steps = [4, 8, 12, 20, 40, 60, 80, 120, 160, 200, 400, 800];
+  const max = steps.find((x) => x >= peak) || Math.ceil(peak / 400) * 400;
+  const band = (W - m.l - m.r) / Math.max(buckets.length, 1), bw = Math.min(24, Math.max(2, (band - 6) / 2));
+  const y = (val) => H - m.b - (H - m.t - m.b) * val / max;
+  for (let g = 0; g <= 4; g++) { const gv = max * g / 4; svg("line", { x1: m.l, x2: W - m.r, y1: y(gv), y2: y(gv), stroke: css("--rule"), "stroke-width": 1 }, s); svg("text", { x: m.l - 6, y: y(gv) + 4, "text-anchor": "end" }, s).textContent = gv; }
+  const bar = (x, val, color) => { if (val <= 0) return; const top = y(val), base = H - m.b, r = Math.min(4, bw / 2, base - top);
+    svg("path", { d: `M${x} ${base}V${top + r}Q${x} ${top} ${x + r} ${top}H${x + bw - r}Q${x + bw} ${top} ${x + bw} ${top + r}V${base}Z`, fill: css(color) }, s); };
+  const every = Math.ceil(buckets.length / Math.max(3, Math.floor((W - m.l) / 70)));
+  const tip = $("tip");
+  buckets.forEach((b, i) => {
+    const cx = m.l + band * (i + 0.5);
+    bar(cx - bw - 1, b.opened, "--accent"); bar(cx + 1, b.merged, "--series-2");
+    if (i % every === 0) svg("text", { x: cx, y: H - 6, "text-anchor": "middle" }, s).textContent = iso(b.start).slice(5);
+    const hit = svg("rect", { x: m.l + band * i, y: 0, width: band, height: H - m.b, fill: "transparent", tabindex: 0 }, s);
+    const show = () => { const r = s.getBoundingClientRect(), hr = host.getBoundingClientRect();
+      tip.textContent = "Week of " + iso(b.start) + ": " + b.opened + " opened, " + b.merged + " merged"; tip.hidden = false;
+      let left = hr.left + window.scrollX + cx * r.width / W + 12;
+      if (left + tip.offsetWidth > window.scrollX + document.documentElement.clientWidth - 8) left -= tip.offsetWidth + 24;
+      tip.style.left = Math.max(8, left) + "px"; tip.style.top = (hr.top + window.scrollY + 8) + "px"; };
+    const hide = () => { tip.hidden = true; };
+    hit.addEventListener("pointermove", show); hit.addEventListener("focus", show); hit.addEventListener("pointerleave", hide); hit.addEventListener("blur", hide);
+  });
+}
+
+async function start() {
+  INDEX = await (await fetch("data/index.json")).json();
+  $("stamp").textContent = INDEX.repo + " · data of " + (INDEX.generated || "").slice(0, 16).replace("T", " ") + " UTC · " + INDEX.pull_requests.toLocaleString("en-US") + " pull requests";
+  $("repo-link").href = "https://github.com/" + (document.querySelector('meta[name="source"]')?.content || "jhedberg/zephyr-review-capacity");
+  [30, 90, 180, 365].forEach((d) => { const b = el("button", null, "Last " + d + " days"); b.type = "button"; b.dataset.days = d; b.addEventListener("click", () => { state.days = d; render(); }); $("presets").appendChild(b); });
+  fillAreas("");
+  $("filter").addEventListener("input", () => fillAreas($("filter").value));
+  $("area").addEventListener("change", () => { state.skip = ""; loadArea($("area").value); });
+  const custom = () => { if ($("from").value && $("to").value && $("from").value <= $("to").value) { state.days = 0; state.from = $("from").value; state.to = $("to").value; render(); } };
+  $("from").addEventListener("change", custom); $("to").addEventListener("change", custom);
+  [["opt-comment", "comment"], ["opt-excuse", "excuse"], ["opt-own", "own"]].forEach(([id, key]) => { $(id).checked = state[key]; $(id).addEventListener("change", () => { state[key] = $(id).checked; render(); }); });
+  $("skip-author").addEventListener("change", () => { state.skip = $("skip-author").value; render(); });
+  $("line").addEventListener("input", () => { state.line = +$("line").value; render(); });
+  if (!state.days && !(state.from && state.to)) state.days = 90;
+  if (!INDEX.complete || INDEX.oldest) {
+    const c = $("coverage");
+    const oldest = (INDEX.oldest || "").slice(0, 10);
+    if (!INDEX.complete) { c.textContent = "The history is still being filled in. So far it holds the pull requests updated since " + oldest + "; periods that start earlier are incomplete."; c.hidden = false; }
+    else { $("stamp").textContent += " · updated since " + oldest; }
+  }
+  await loadArea(state.area);
+  let timer; window.addEventListener("resize", () => { clearTimeout(timer); timer = setTimeout(() => drawChart(lastBuckets), 150); });
+  if (window.matchMedia) window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => drawChart(lastBuckets));
+}
+start().catch((err) => { $("stamp").textContent = "Could not load the data: " + err.message; });
+</script>
+</body>
+</html>
