@@ -87,10 +87,11 @@ REVIEW_STATE = {"APPROVED": "A", "CHANGES_REQUESTED": "R", "COMMENTED": "C",
 
 
 class Budget:
-    """The API points left; a run stops before they run out."""
+    """The API points and the time left; a run stops before either runs out."""
 
-    def __init__(self, floor: int):
+    def __init__(self, floor: int, max_minutes: float):
         self.floor = floor
+        self.deadline = time.monotonic() + max_minutes * 60 if max_minutes else None
         self.remaining = None
 
     def seen(self, rate: dict) -> None:
@@ -98,6 +99,8 @@ class Budget:
 
     @property
     def spent(self) -> bool:
+        if self.deadline is not None and time.monotonic() >= self.deadline:
+            return True
         return self.remaining is not None and self.remaining <= self.floor
 
 
@@ -182,6 +185,8 @@ def main() -> None:
                         help="how far back the cache reaches (by last update)")
     parser.add_argument("--floor", type=int, default=60,
                         help="stop when this many API points are left")
+    parser.add_argument("--max-minutes", type=float, default=0,
+                        help="stop refreshing after this long (0: no limit)")
     parser.add_argument("--max-prs", type=int, default=0,
                         help="refresh at most this many pull requests (0: no limit)")
     parser.add_argument("--workers", type=int, default=3)
@@ -190,7 +195,7 @@ def main() -> None:
     owner, name = args.repo.split("/", 1)
     cache = load(args.cache)
     prs, state = cache["prs"], cache["state"]
-    budget = Budget(args.floor)
+    budget = Budget(args.floor, args.max_minutes)
     now = dt.datetime.now(dt.timezone.utc)
     cutoff = (now - dt.timedelta(days=args.history_days)).isoformat()
     refreshed = 0
@@ -222,6 +227,9 @@ def main() -> None:
                     for rec in pool.map(refresh, stale[i:i + 20]):
                         prs[str(rec["n"])] = rec
                         refreshed += 1
+                    if refreshed % 500 < 20:
+                        print(f"  {refreshed} refreshed, API points left {budget.remaining}",
+                              flush=True)
             limit_hit = args.max_prs and refreshed >= args.max_prs
             if not done_all or limit_hit:
                 return cursor, False

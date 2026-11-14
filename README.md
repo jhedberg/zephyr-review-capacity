@@ -57,7 +57,8 @@ Things to keep in mind when reading a number:
 - `fetch.py` keeps a cache of the review history of the repository's pull
   requests (reviews, comments, review requests, draft changes, labels). Each
   run catches up with what changed and then continues backwards in time until
-  the API budget of the run is used, so the history fills over several runs.
+  the API or time budget of the run is used, so the history fills over several
+  runs.
   Each pull request is fetched with a query of its own: GitHub returns empty
   timelines, without an error, when one query asks for many.
 - `build.py` reads the cache and `MAINTAINERS.yml` and writes one data file

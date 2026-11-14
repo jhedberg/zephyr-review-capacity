@@ -57,7 +57,7 @@ jobs:
       - name: Fetch
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python -u fetch.py --repo "$SOURCE_REPO" --cache cache/prs.json.gz
+        run: python -u fetch.py --repo "$SOURCE_REPO" --cache cache/prs.json.gz --max-minutes 25
 
       - name: Build
         run: |
