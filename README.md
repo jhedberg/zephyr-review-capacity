@@ -65,8 +65,8 @@ Things to keep in mind when reading a number:
 - `build.py` reads the cache and `MAINTAINERS.yml` and writes one data file
   per area plus an index.
 - `public/index.html` is the page. It has no dependencies.
-- `.github/workflows/update.yml` runs both every hour with the workflow's own
-  token and publishes the result with GitHub Pages. The cache is published
+- `.github/workflows/update.yml` runs both once a day (03:41 UTC) with the
+  workflow's own token and publishes the result with GitHub Pages. The cache is published
   with the site and picked up again by the next run.
 
 ## Where the data lives
