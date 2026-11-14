@@ -55,7 +55,8 @@ Things to keep in mind when reading a number:
 ## How it works
 
 - `fetch.py` keeps a cache of the review history of the repository's pull
-  requests (reviews, comments, review requests, draft changes, labels). Each
+  requests updated in the last year (reviews, comments, review requests, draft
+  changes, labels). Each
   run catches up with what changed and then continues backwards in time until
   the API or time budget of the run is used, so the history fills over several
   runs.
@@ -67,6 +68,25 @@ Things to keep in mind when reading a number:
 - `.github/workflows/update.yml` runs both every hour with the workflow's own
   token and publishes the result with GitHub Pages. The cache is published
   with the site and picked up again by the next run.
+
+## Where the data lives
+
+Nowhere but in the published site; nothing of it is in this repository.
+
+- `cache/prs.json.gz` is the fetcher's cache: one gzip-compressed JSON file,
+  `{"state": {...}, "prs": {"<number>": {...}}}`, about 1 KB per pull request
+  before compression. A record holds the title, author, labels, the creation,
+  close and merge times, and lists of reviews (time, login, state), comments
+  (time, login), review requests (time, login, asked or withdrawn) and draft
+  changes. Times are minutes since the epoch. Pull requests not updated for a
+  year are dropped.
+- `data/index.json` lists the areas, and `data/<area>.json` holds an area's
+  roster, a table of logins and three arrays of integer rows: pull requests,
+  review requests to listed people, and reviewers.
+
+Each run replaces the previous deployment, so no older versions are kept. The
+cache is disposable: without it the fetcher rebuilds the year from GitHub in a
+few runs.
 
 ## Running it locally
 

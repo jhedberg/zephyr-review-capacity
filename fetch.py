@@ -181,7 +181,7 @@ def main() -> None:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--repo", default="zephyrproject-rtos/zephyr")
     parser.add_argument("--cache", type=Path, default=Path("cache/prs.json.gz"))
-    parser.add_argument("--history-days", type=int, default=400,
+    parser.add_argument("--history-days", type=int, default=365,
                         help="how far back the cache reaches (by last update)")
     parser.add_argument("--floor", type=int, default=60,
                         help="stop when this many API points are left")
