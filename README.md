@@ -11,6 +11,21 @@ project policy.
 
 ## What the page shows
 
+There are two views.
+
+**All areas** compares the areas with each other, for whoever looks after the
+project as a whole: how many people are listed and how many of them review,
+how many pull requests arrive for each of those, how much of the approving is
+done by listed people, how many requests are answered, how many pull requests
+get no answer from the list, how long the first review takes and how many pull
+requests are waiting. Sort by any column, or use "Show first" to bring up the
+areas that need reviewers, answer least, or wait longest. A strip shows where
+every area sits on the column the table is sorted by. This view offers four
+fixed periods and one way of counting; its figures come from
+`data/summary.json`.
+
+**One area** is for the area's own maintainers:
+
 Pick an area and a period. For each Maintainer and Collaborator of the area
 the page shows the share of review requests they answered, and a line you can
 move: Collaborators below it would come off the list at that level. Below that
@@ -24,9 +39,11 @@ The address bar holds the current view and can be shared.
 
 ## How it is counted
 
-- An area's pull requests are those carrying the area's own label (the label
-  named after the area, or else its first label). Areas that share a label
-  share their pull requests. Label names are compared without regard to case,
+- An area's pull requests are those carrying the area's own label: the label
+  named after the area, or else the one of its labels that the fewest areas
+  list. An area that has only a label named after another area (many West
+  projects) sees that area's pull requests; the view of all areas hides those
+  unless asked. Label names are compared without regard to case,
   as GitHub does.
 - A request counts once per person and pull request, at the first request. It
   is answered when the person reviews at or after the request and before the

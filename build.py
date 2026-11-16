@@ -46,11 +46,21 @@ def slug(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
 
 
+LABEL_USE: dict[str, int] = {}   # how many areas list each label
+
+
 def primary_label(name: str, area: dict) -> str | None:
+    """The label that stands for the area itself: the one named after the
+    area, else the one the fewest areas list (an area often also lists the
+    label of the group it belongs to)."""
     labels = area.get("labels") or []
-    if f"area: {name}" in labels:
-        return f"area: {name}"
-    return labels[0] if labels else None
+    if not labels:
+        return None
+    wanted = {name.lower(), name.split(":")[-1].strip().lower()}
+    for label in labels:
+        if label.split(":", 1)[-1].strip().lower() in wanted:
+            return label
+    return min(labels, key=lambda label: LABEL_USE.get(label.lower(), 0))
 
 
 class PR:
@@ -150,6 +160,79 @@ def build_area(name: str, area: dict, prs: list[PR], maintains: dict, now: int) 
             "logins": logins, "prs": rows, "asks": asks, "revs": revs}
 
 
+WINDOWS = (30, 90, 180, 365)
+WAITING = 14 * DAY
+
+
+def median(values: list) -> float | None:
+    if not values:
+        return None
+    values = sorted(values)
+    mid = len(values) // 2
+    return values[mid] if len(values) % 2 else (values[mid - 1] + values[mid]) / 2
+
+
+def summarize(data: dict, now: int) -> dict:
+    """Health figures of one area for each fixed period, counted the default
+    way: a comment counts, and a miss is excused when the pull request closed
+    or collected two other approvals within a week."""
+    logins, prs = data["logins"], data["prs"]
+    maintainers = {logins.index(w) for w in data["maintainers"]}
+    roster = maintainers | {logins.index(w) for w in data["collaborators"]}
+    waiting = sum(1 for p in prs if not p[5] and not p[8] and not p[6]
+                  and p[3] and now - p[3] >= WAITING)
+    out = {"waiting": waiting, "w": {}}
+    for days in WINDOWS:
+        start = now - days * DAY
+        asks = answered = m_asks = m_answered = 0
+        per_pr: dict[int, int] = {}
+        for who, row, asked, reviewed, commented, flags in data["asks"]:
+            if asked < start:
+                continue
+            hit = bool(reviewed or commented)
+            if not hit:
+                if flags & (WITHDRAWN | CLOSED_EARLY | PENDING | EXCUSED):
+                    continue
+                if now - asked < PENDING_GRACE and not prs[row][5]:
+                    continue
+            asks += 1
+            answered += hit
+            per_pr[row] = per_pr.get(row, 0) + hit
+            if who in maintainers:
+                m_asks += 1
+                m_answered += hit
+        reviewed_by: dict[int, int] = {}
+        approvals = listed_approvals = 0
+        for who, _row, first, approved, _last in data["revs"]:
+            if first >= start:
+                reviewed_by[who] = reviewed_by.get(who, 0) + 1
+            if approved >= start:
+                approvals += 1
+                listed_approvals += who in roster
+        need = max(1, round(days / 30))  # about one pull request a month
+        active = sum(1 for who in roster if reviewed_by.get(who, 0) >= need)
+        total_reviews = sum(reviewed_by.values())
+        ready = [p for p in prs if p[3] >= start]
+        merged = [p for p in prs if p[4] >= start]
+        first_review = [max(0, p[6] - p[3]) / DAY for p in ready if p[6]]
+        to_merge = [max(0, p[4] - p[3]) / DAY for p in merged if p[3]]
+        unlisted = sorted(((n, logins[w]) for w, n in reviewed_by.items() if w not in roster),
+                          reverse=True)[:3]
+        out["w"][str(days)] = {
+            "ready": len(ready), "merged": len(merged),
+            "asks": asks, "answered": answered,
+            "asked_prs": len(per_pr), "silent_prs": sum(1 for n in per_pr.values() if not n),
+            "answers": sum(per_pr.values()),
+            "m_asks": m_asks, "m_answered": m_answered,
+            "active": active, "approvals": approvals, "listed_approvals": listed_approvals,
+            "top_share": round(max(reviewed_by.values()) / total_reviews, 3) if total_reviews else None,
+            "first_review": None if not first_review else round(median(first_review), 2),
+            "to_merge": None if not to_merge else round(median(to_merge), 2),
+            "unlisted": [[w, n] for n, w in unlisted],
+        }
+    return out
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -163,6 +246,9 @@ def main() -> None:
         cache = json.load(f)
     areas = {k: v for k, v in yaml.safe_load(args.maintainers.read_text()).items()
              if isinstance(v, dict)}
+    for area in areas.values():
+        for label in area.get("labels") or []:
+            LABEL_USE[label.lower()] = LABEL_USE.get(label.lower(), 0) + 1
     prs = [PR(raw) for raw in cache["prs"].values()]
     fetched = cache["state"].get("fetched_at")
     now = int(dt.datetime.fromisoformat(fetched).timestamp() // 60)
@@ -183,6 +269,31 @@ def main() -> None:
     for old in args.out.glob("*.json"):
         old.unlink()
     index = []
+    summary = []
+    # An area that uses a label named after another area sees that area's
+    # pull requests. The owner of a label is the area named like it.
+    users: dict[str, list] = {}
+    for name, area in areas.items():
+        label = primary_label(name, area)
+        if label:
+            users.setdefault(label.lower(), []).append(name)
+
+    def claim(name: str, label: str) -> int:
+        """How strongly an area owns a label: named exactly like it, named
+        after it ("ADI Platforms" for "platform: ADI"), any other area, and
+        last a West project, which takes the label of the area it serves."""
+        topic = label.split(":", 1)[-1].strip().lower()
+        lower = name.lower()
+        if lower.startswith("west project"):
+            return 0
+        if topic in (lower, lower.split(":")[-1].strip()):
+            return 3
+        return 2 if lower.startswith(topic + " ") else 1
+
+    def borrows(name: str, label: str) -> bool:
+        others = users[label.lower()]
+        return claim(name, label) < max(claim(other, label) for other in others)
+
     for name, area in sorted(areas.items(), key=lambda kv: kv[0].lower()):
         label = primary_label(name, area)
         if not label:
@@ -193,11 +304,18 @@ def main() -> None:
         index.append({"name": name, "file": file, "status": area.get("status"),
                       "people": len(data["maintainers"]) + len(data["collaborators"]),
                       "prs": len(data["prs"])})
+        summary.append({"name": name, "status": area.get("status"),
+                        "maintainers": len(data["maintainers"]),
+                        "collaborators": len(data["collaborators"]),
+                        "shares_label": 1 if borrows(name, label) else 0,
+                        **summarize(data, now)})
     (args.out / "index.json").write_text(json.dumps({
         "repo": args.repo, "generated": fetched, "now": now,
         "oldest": cache["state"].get("oldest"), "complete": cache["state"].get("complete"),
         "pull_requests": len(prs), "truncated": sum(1 for r in cache["prs"].values() if r.get("x")),
         "areas": index}, separators=(",", ":")))
+    (args.out / "summary.json").write_text(json.dumps(
+        {"now": now, "windows": list(WINDOWS), "areas": summary}, separators=(",", ":")))
     print(f"{len(index)} areas from {len(prs)} pull requests")
 
 

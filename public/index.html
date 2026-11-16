@@ -24,7 +24,7 @@
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--ink); font: 400 16px/1.55 var(--font); padding: 32px 16px 64px; }
-main { max-width: 1000px; margin: 0 auto; display: flex; flex-direction: column; gap: 40px; }
+main { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 40px; }
 header, section { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 h1 { font-size: clamp(28px, 5vw, 40px); line-height: 1.15; margin: 0; letter-spacing: -0.01em; }
 h2 { font-size: 24px; line-height: 1.2; margin: 0; }
@@ -101,6 +101,23 @@ thead th { border-top: 0; font: 500 11px/1.3 var(--mono); letter-spacing: 0.06em
 td.n, th.n { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
 td.login { font-family: var(--mono); }
 ul.plain { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; max-width: 72ch; font-size: 14px; color: var(--ink-2); }
+#view-all, #view-area { display: flex; flex-direction: column; gap: 40px; }
+#overview { font-size: 13px; }
+#overview th, #overview td { padding-right: 10px; }
+.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--rule); }
+.tabs button { font: 600 15px var(--font); color: var(--ink-3); background: none; border: 0; border-bottom: 3px solid transparent; padding: 10px 16px; margin-bottom: -1px; cursor: pointer; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+#overview th button { font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: inherit; }
+#overview th[aria-sort] button { color: var(--ink); }
+#overview td.area { min-width: 170px; }
+#overview td.area button { font: 500 14px var(--font); color: var(--accent-ink); background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+#overview td.area button:hover { text-decoration: underline; }
+#overview td.bad { font-weight: 700; color: var(--ink); }
+#overview td.bad::before { content: "\25CF"; color: var(--series-2); font-size: 9px; margin-right: 5px; vertical-align: 1px; }
+.tag { font: 500 10px var(--mono); letter-spacing: 0.05em; color: var(--ink-3); border: 1px solid var(--rule); border-radius: 3px; padding: 1px 5px; margin-left: 6px; white-space: nowrap; }
+.strip svg { display: block; width: 100%; height: auto; overflow: visible; }
+.strip text { font: 400 11px var(--mono); fill: var(--ink-3); }
+.strip rect.t { cursor: pointer; }
 [hidden] { display: none !important; }
 </style>
 </head>
@@ -109,10 +126,39 @@ ul.plain { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
 <header>
   <div class="kicker" id="stamp">Loading</div>
   <h1>Zephyr review capacity</h1>
-  <p class="lede">Who answers when a pull request asks for review, area by area. Pick an area and a period, then move the line to see who would stay on the list at that level of participation.</p>
+  <p class="lede">Who answers when a pull request asks for review. One view compares all areas and shows which need attention; the other looks at one area and the people listed for it.</p>
   <p class="warn" id="coverage" hidden></p>
+  <div class="tabs" role="tablist">
+    <button type="button" role="tab" id="tab-all" aria-controls="view-all">All areas</button>
+    <button type="button" role="tab" id="tab-area" aria-controls="view-area">One area</button>
+  </div>
 </header>
 
+<div id="view-all" role="tabpanel" aria-labelledby="tab-all" hidden>
+<section>
+  <div class="panel">
+    <div class="controls">
+      <div class="field"><span>Period</span><div class="seg" id="all-presets" role="group" aria-label="Period"></div></div>
+      <div class="field"><label for="min-prs">At least this many pull requests</label><select id="min-prs"></select></div>
+      <div class="field"><label for="all-filter">Area name contains</label><input type="search" id="all-filter" placeholder="for example: drivers"></div>
+    </div>
+    <div class="controls">
+      <div class="field"><span>Show first</span><div class="seg" id="sorts" role="group" aria-label="Show first"></div></div>
+      <div class="checks"><label><input type="checkbox" id="hide-shared"> Hide areas that only borrow another area's label (their pull requests are mostly not their own)</label></div>
+    </div>
+    <div class="tiles" id="all-tiles"></div>
+    <div>
+      <h3 id="strip-title"></h3>
+      <p class="note" id="strip-note"></p>
+      <div class="strip chart" id="strip"></div>
+    </div>
+    <div class="scroll"><table id="overview"></table></div>
+    <p class="note">A dot marks a value in the worst tenth of the areas shown. Listed: Maintainers and Collaborators. Active: those of them who reviewed about one pull request a month or more. Load: pull requests arriving per week for each active person. From list: the share of approvals given by listed people. Answered: review requests to listed people that were answered. Unanswered: the share of pull requests on which nobody listed took part. 1st review: median days from ready to the first review by anyone. Waiting: open, ready pull requests with no review after two weeks. Counted with a comment as an answer and with the excuse rule on; open an area for the other ways of counting.</p>
+  </div>
+</section>
+</div>
+
+<div id="view-area" role="tabpanel" aria-labelledby="tab-area" hidden>
 <section>
   <div class="panel">
     <div class="controls">
@@ -161,6 +207,8 @@ ul.plain { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
   </div>
 </section>
 
+</div>
+
 <section>
   <h2>How this is counted</h2>
   <ul class="plain">
@@ -170,6 +218,7 @@ ul.plain { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
     <li>With the excuse option on, a miss is also not counted when the pull request closed within seven days of the request or two other people had approved it within seven days.</li>
     <li>People with fewer than five countable requests are not judged. The line never takes a Maintainer off.</li>
     <li>Approved counts the pull requests the person first approved in the period, asked or not. Bot accounts are left out everywhere.</li>
+    <li>In the view of all areas, a listed person counts as active when they reviewed about one pull request a month or more in the period. An area whose label is named after another area (a West project using "area: Tests", say) sees that area's pull requests, so its figures are not its own; such areas are hidden there unless asked for.</li>
     <li>A period that includes a holiday season lowers everyone's rate. Compare like with like before drawing a conclusion about a person.</li>
     <li>The numbers come from public GitHub data and are refreshed by a script; see the <a id="repo-link" href="https://github.com/jhedberg/zephyr-review-capacity">source</a> for the exact rules.</li>
   </ul>
@@ -190,9 +239,12 @@ const median = (v) => { if (!v.length) return null; v = v.slice().sort((a, b) =>
 const profile = (login) => { const a = el("a", null, login); a.href = "https://github.com/" + login; a.target = "_blank"; a.rel = "noopener"; return a; };
 const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
-let INDEX = null, AREA = null;
+let INDEX = null, AREA = null, SUMMARY = null;
 const params = new URLSearchParams(location.search);
 const state = {
+  view: params.get("view") || (params.has("area") ? "area" : "all"),
+  sort: params.get("sort") || "load", dir: +(params.get("dir") || -1),
+  minPrs: +(params.get("min") || 25), hideShared: params.get("shared") !== "1", allFilter: params.get("q") || "",
   area: params.get("area") || "Bluetooth Host",
   from: params.get("from"), to: params.get("to"), days: +(params.get("days") || 90),
   line: params.has("line") ? +params.get("line") : 10,
@@ -202,6 +254,14 @@ const state = {
 
 function remember() {
   const p = new URLSearchParams();
+  p.set("view", state.view);
+  if (state.view === "all") {
+    p.set("days", state.days || 90); p.set("sort", state.sort); p.set("dir", state.dir); p.set("min", state.minPrs);
+    if (!state.hideShared) p.set("shared", "1");
+    if (state.allFilter) p.set("q", state.allFilter);
+    history.replaceState(null, "", "?" + p.toString());
+    return;
+  }
   p.set("area", state.area);
   if (state.days) { p.set("days", state.days); } else { p.set("from", state.from); p.set("to", state.to); }
   p.set("line", state.line);
@@ -223,7 +283,8 @@ async function loadArea(name) {
   state.area = entry.name;
   AREA = await (await fetch("data/" + entry.file)).json();
   AREA.roster = new Set(AREA.maintainers.concat(AREA.collaborators));
-  render();
+  if ($("area").value !== state.area) fillAreas($("filter").value);
+  if (state.view === "area") render(); else remember();
 }
 
 function fillAreas(filter) {
@@ -379,6 +440,140 @@ function render() {
   t.appendChild(tb);
 }
 
+/* ---------- all areas ---------- */
+const COLS = [
+  { key: "name", label: "Area", worse: 0 },
+  { key: "listed", label: "Listed", worse: 0, fmt: (v) => v },
+  { key: "active", label: "Active", worse: -1, fmt: (v) => v },
+  { key: "perWeek", label: "PRs/week", worse: 0, fmt: f1 },
+  { key: "load", label: "Load", worse: 1, fmt: (v) => v === Infinity ? "nobody active" : f1(v) },
+  { key: "fromList", label: "From list", worse: -1, fmt: pc },
+  { key: "answer", label: "Answered", worse: -1, fmt: pc },
+  { key: "silent", label: "Unanswered", worse: 1, fmt: pc },
+  { key: "firstReview", label: "1st review (d)", worse: 1, fmt: f1 },
+  { key: "waiting", label: "Waiting", worse: 1, fmt: (v) => v },
+];
+const SORTS = [["load", -1, "Needs reviewers"], ["answer", 1, "Lowest answer rate"], ["silent", -1, "Most left unanswered"], ["firstReview", -1, "Slowest first review"], ["waiting", -1, "Most waiting"]];
+
+function areaRows() {
+  const days = state.days || 90, weeks = days / 7;
+  return SUMMARY.areas.map((a) => {
+    const w = a.w[days];
+    return {
+      name: a.name, shares: a.shares_label, listed: a.maintainers + a.collaborators, active: w.active, ready: w.ready,
+      perWeek: w.ready / weeks, load: w.active ? w.ready / weeks / w.active : (w.ready ? Infinity : null),
+      fromList: w.approvals >= 5 ? w.listed_approvals / w.approvals : null,
+      answer: w.asks >= 5 ? w.answered / w.asks : null,
+      silent: w.asked_prs >= 5 ? w.silent_prs / w.asked_prs : null,
+      firstReview: w.first_review, waiting: a.waiting, unlisted: w.unlisted,
+    };
+  });
+}
+
+function renderAll() {
+  remember();
+  const days = state.days || 90;
+  for (const b of $("all-presets").children) b.setAttribute("aria-pressed", String(+b.dataset.days === days));
+  for (const b of $("sorts").children) b.setAttribute("aria-pressed", String(b.dataset.key === state.sort && +b.dataset.dir === state.dir));
+  const words = state.allFilter.toLowerCase().split(/\s+/).filter(Boolean);
+  const rows = areaRows().filter((r) => r.ready >= state.minPrs && (!state.hideShared || !r.shares) && words.every((w) => r.name.toLowerCase().includes(w)));
+  const col = COLS.find((c) => c.key === state.sort) || COLS[4];
+  const val = (r) => r[col.key];
+  rows.sort((a, b) => {
+    const x = val(a), y = val(b);
+    if (x == null && y == null) return a.name.localeCompare(b.name);
+    if (x == null) return 1;
+    if (y == null) return -1;
+    if (col.key === "name") return state.dir * x.localeCompare(y);
+    return x === y ? b.perWeek - a.perWeek : state.dir * (x - y);
+  });
+
+  /* worst tenth per column, among the areas shown */
+  const bad = {};
+  for (const c of COLS) {
+    if (!c.worse) continue;
+    const v = rows.map((r) => r[c.key]).filter((x) => x != null).sort((a, b) => c.worse * (b - a));
+    bad[c.key] = v.length >= 10 ? v[Math.max(0, Math.floor(v.length / 10) - 1)] : null;
+  }
+  const isBad = (c, x) => c.worse && x != null && bad[c.key] != null && c.worse * (x - bad[c.key]) >= 0 && !(c.key === "waiting" && x === 0) && !(c.key === "silent" && x === 0);
+
+  const tiles = $("all-tiles"); tiles.textContent = "";
+  const count = (f) => rows.filter(f).length;
+  [[rows.length, "areas shown", "of " + SUMMARY.areas.length + " in MAINTAINERS.yml"],
+   [count((r) => r.active === 0), "with nobody listed who reviews", "about one a month or more"],
+   [count((r) => r.active === 1), "resting on one listed reviewer", ""],
+   [count((r) => r.fromList != null && r.fromList < 0.5), "with under half of approvals from the list", ""],
+   [count((r) => r.silent != null && r.silent >= 0.5), "where half the pull requests get no answer from the list", ""]]
+    .forEach(([v, label, sub]) => { const t = el("div", "tile"); t.appendChild(el("div", "v", String(v))); t.appendChild(el("div", "l", label)); t.appendChild(el("div", "s", sub)); tiles.appendChild(t); });
+
+  drawStrip(rows, col);
+
+  const table = $("overview"); table.textContent = "";
+  const th = el("thead"), hr = el("tr");
+  for (const c of COLS) {
+    const h = el("th", c.key === "name" ? null : "n"), b = el("button", null, c.label); b.type = "button";
+    if (c.key === state.sort) h.setAttribute("aria-sort", state.dir > 0 ? "ascending" : "descending");
+    b.addEventListener("click", () => { if (state.sort === c.key) { state.dir = -state.dir; } else { state.sort = c.key; state.dir = c.key === "name" ? 1 : (c.worse >= 0 ? -1 : 1); } renderAll(); });
+    h.appendChild(b); hr.appendChild(h);
+  }
+  th.appendChild(hr); table.appendChild(th);
+  const tb = el("tbody");
+  for (const r of rows) {
+    const tr = el("tr"), td = el("td", "area"), open = el("button", null, r.name); open.type = "button";
+    open.addEventListener("click", () => { state.view = "area"; state.skip = ""; showView(); loadArea(r.name); window.scrollTo(0, 0); });
+    td.appendChild(open);
+    if (r.shares) td.appendChild(el("span", "tag", "BORROWED LABEL"));
+    tr.appendChild(td);
+    for (const c of COLS.slice(1)) { const x = r[c.key]; tr.appendChild(el("td", "n" + (isBad(c, x) ? " bad" : ""), x == null ? "n/a" : String(c.fmt(x)))); }
+    tb.appendChild(tr);
+  }
+  table.appendChild(tb);
+}
+
+/* where every shown area sits on the measure the table is sorted by */
+function drawStrip(rows, col) {
+  const host = $("strip"); host.textContent = "";
+  const numeric = col.key !== "name";
+  $("strip-title").textContent = numeric ? "Spread of the areas: " + col.label.toLowerCase() : "";
+  $("strip-note").textContent = numeric ? "One mark per area. Sort the table by another column to see that spread." : "";
+  if (!numeric) return;
+  const pts = rows.filter((r) => r[col.key] != null);
+  if (!pts.length) return;
+  const finite = pts.map((r) => r[col.key]).filter((v) => v !== Infinity).sort((a, b) => a - b);
+  const isShare = ["fromList", "answer", "silent"].includes(col.key);
+  const cap = isShare ? 1 : (finite.length ? finite[Math.min(finite.length - 1, Math.floor(finite.length * 0.97))] || 1 : 1);
+  const hasInf = pts.some((r) => r[col.key] === Infinity);
+  const W = host.clientWidth || 600, H = 74, l = 8, r = hasInf ? 110 : 16;
+  const s = svg("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "Spread of the areas shown" }, host);
+  const x = (v) => l + (W - l - r) * Math.min(v, cap) / cap;
+  svg("line", { x1: l, x2: W - r, y1: 46, y2: 46, stroke: css("--rule"), "stroke-width": 1 }, s);
+  [0, 0.25, 0.5, 0.75, 1].forEach((f) => { const t = svg("text", { x: l + (W - l - r) * f, y: 64, "text-anchor": f === 0 ? "start" : (f === 1 ? "end" : "middle") }, s); t.textContent = isShare ? pc(f) : f1(cap * f) + (f === 1 && !isShare ? "+" : ""); });
+  if (hasInf) svg("text", { x: W - r + 14, y: 64 }, s).textContent = "nobody active";
+  const tip = $("tip");
+  let inf = 0;
+  for (const p of pts) {
+    const v = p[col.key];
+    const cx = v === Infinity ? W - r + 16 + (inf++ % 30) * 3 : x(v);
+    const t = svg("rect", { class: "t", x: cx - 1, y: 14, width: 2.5, height: 32, fill: css(v === Infinity ? "--series-2" : "--accent"), opacity: 0.55, tabindex: 0 }, s);
+    const show = () => { const hr = host.getBoundingClientRect(), sr = s.getBoundingClientRect();
+      tip.textContent = p.name + ": " + col.fmt(v); tip.hidden = false;
+      let left = hr.left + window.scrollX + cx * sr.width / W + 10;
+      if (left + tip.offsetWidth > window.scrollX + document.documentElement.clientWidth - 8) left -= tip.offsetWidth + 20;
+      tip.style.left = Math.max(8, left) + "px"; tip.style.top = (hr.top + window.scrollY - 30) + "px"; t.setAttribute("opacity", 1); };
+    const hide = () => { tip.hidden = true; t.setAttribute("opacity", 0.55); };
+    t.addEventListener("pointermove", show); t.addEventListener("focus", show); t.addEventListener("pointerleave", hide); t.addEventListener("blur", hide);
+    t.addEventListener("click", () => { state.view = "area"; state.skip = ""; showView(); loadArea(p.name); window.scrollTo(0, 0); });
+  }
+  if (finite.length) { const m = median(finite); svg("line", { x1: x(m), x2: x(m), y1: 8, y2: 50, stroke: css("--ink"), "stroke-width": 1.5 }, s); svg("text", { x: x(m), y: 8, "text-anchor": "middle" }, s).textContent = "median " + col.fmt(m); }
+}
+
+function showView() {
+  const all = state.view === "all";
+  $("view-all").hidden = !all; $("view-area").hidden = all;
+  $("tab-all").setAttribute("aria-selected", String(all)); $("tab-area").setAttribute("aria-selected", String(!all));
+  if (all) { if (![30, 90, 180, 365].includes(state.days)) state.days = 90; renderAll(); }
+}
+
 /* weekly columns */
 const NS = "http://www.w3.org/2000/svg";
 const svg = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
@@ -415,6 +610,7 @@ function drawChart(buckets) {
 
 async function start() {
   INDEX = await (await fetch("data/index.json")).json();
+  SUMMARY = await (await fetch("data/summary.json")).json();
   $("stamp").textContent = INDEX.repo + " · data of " + (INDEX.generated || "").slice(0, 16).replace("T", " ") + " UTC · " + INDEX.pull_requests.toLocaleString("en-US") + " pull requests";
   $("repo-link").href = "https://github.com/" + (document.querySelector('meta[name="source"]')?.content || "jhedberg/zephyr-review-capacity");
   [30, 90, 180, 365].forEach((d) => { const b = el("button", null, "Last " + d + " days"); b.type = "button"; b.dataset.days = d; b.addEventListener("click", () => { state.days = d; render(); }); $("presets").appendChild(b); });
@@ -433,8 +629,17 @@ async function start() {
     if (!INDEX.complete) { c.textContent = "The history is still being filled in. So far it holds the pull requests updated since " + oldest + "; periods that start earlier are incomplete."; c.hidden = false; }
     else { $("stamp").textContent += " · updated since " + oldest; }
   }
+  [30, 90, 180, 365].forEach((d) => { const b = el("button", null, "Last " + d + " days"); b.type = "button"; b.dataset.days = d; b.addEventListener("click", () => { state.days = d; renderAll(); }); $("all-presets").appendChild(b); });
+  SORTS.forEach(([key, dir, label]) => { const b = el("button", null, label); b.type = "button"; b.dataset.key = key; b.dataset.dir = dir; b.addEventListener("click", () => { state.sort = key; state.dir = dir; renderAll(); }); $("sorts").appendChild(b); });
+  [5, 10, 25, 50, 100, 250].forEach((n) => { const o = el("option", null, String(n)); o.value = n; $("min-prs").appendChild(o); });
+  $("min-prs").value = state.minPrs; $("min-prs").addEventListener("change", () => { state.minPrs = +$("min-prs").value; renderAll(); });
+  $("hide-shared").checked = state.hideShared; $("hide-shared").addEventListener("change", () => { state.hideShared = $("hide-shared").checked; renderAll(); });
+  $("all-filter").value = state.allFilter; $("all-filter").addEventListener("input", () => { state.allFilter = $("all-filter").value; renderAll(); });
+  $("tab-all").addEventListener("click", () => { state.view = "all"; showView(); });
+  $("tab-area").addEventListener("click", () => { state.view = "area"; showView(); render(); });
   await loadArea(state.area);
-  let timer; window.addEventListener("resize", () => { clearTimeout(timer); timer = setTimeout(() => drawChart(lastBuckets), 150); });
+  showView();
+  let timer; window.addEventListener("resize", () => { clearTimeout(timer); timer = setTimeout(() => { if (state.view === "all") renderAll(); else drawChart(lastBuckets); }, 150); });
   if (window.matchMedia) window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => drawChart(lastBuckets));
 }
 start().catch((err) => { $("stamp").textContent = "Could not load the data: " + err.message; });
