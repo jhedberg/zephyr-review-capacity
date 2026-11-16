@@ -33,6 +33,16 @@ it shows the flow through the area (pull requests opened and merged, time to
 the first review and to the merge) and who brings review work against who
 gives it.
 
+Both views also answer whether a pull request can get its two approvals from
+the list. A listed person is called dependable when they answer at least half
+of the requests they get; a pull request is short when fewer than two
+dependable people are left once its author is set aside. An area with two
+dependable people of whom one writes much of the code is short for that
+person's pull requests, so it takes three. The one-area view also lists the
+most active reviewers who are not on the list, with their standing in the
+repository (member of the organization, outside collaborator, neither), as
+candidates for it.
+
 Everything is counted in the browser from per-request records, so any date
 range and any combination of the counting options works without a new run.
 The address bar holds the current view and can be shared.
@@ -96,7 +106,7 @@ Nowhere but in the published site; nothing of it is in this repository.
   before compression. A record holds the title, author, labels, the creation,
   close and merge times, and lists of reviews (time, login, state), comments
   (time, login), review requests (time, login, asked or withdrawn) and draft
-  changes. Times are minutes since the epoch. Pull requests not updated for a
+  changes. A review also carries the reviewer's standing in the repository. Times are minutes since the epoch. Pull requests not updated for a
   year are dropped.
 - `data/index.json` lists the areas, and `data/<area>.json` holds an area's
   roster, a table of logins and three arrays of integer rows: pull requests,
@@ -104,7 +114,8 @@ Nowhere but in the published site; nothing of it is in this repository.
 
 Each run replaces the previous deployment, so no older versions are kept. The
 cache is disposable: without it the fetcher rebuilds the year from GitHub in a
-few runs.
+few runs, or in one when the workflow is started by hand with "full" set, which
+lets it wait for the hourly reset of the API budget for up to five hours.
 
 ## Running it locally
 

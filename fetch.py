@@ -53,10 +53,10 @@ query($owner: String!, $name: String!, $number: Int!) {
       labels(first: 40) { nodes { name } }
       reviews(first: 100) {
         totalCount
-        nodes { id author { login } state submittedAt }
+        nodes { id author { login } authorAssociation state submittedAt }
       }
       reviewsTail: reviews(last: 100) {
-        nodes { id author { login } state submittedAt }
+        nodes { id author { login } authorAssociation state submittedAt }
       }
       comments(first: 100) { nodes { author { login } createdAt } }
       timelineItems(first: 200, itemTypes: [REVIEW_REQUESTED_EVENT,
@@ -84,24 +84,47 @@ query($owner: String!, $name: String!, $number: Int!) {
 
 REVIEW_STATE = {"APPROVED": "A", "CHANGES_REQUESTED": "R", "COMMENTED": "C",
                 "DISMISSED": "D", "PENDING": "P"}
+# The reviewer's standing in the repository: M a member (or owner) of its
+# organization, C an outside collaborator, N neither.
+ASSOCIATION = {"MEMBER": "M", "OWNER": "M", "COLLABORATOR": "C"}
+# Version of the cached record; older records are fetched again.
+SCHEMA = 2
 
 
 class Budget:
     """The API points and the time left; a run stops before either runs out."""
 
-    def __init__(self, floor: int, max_minutes: float):
+    def __init__(self, floor: int, max_minutes: float, wait: bool):
         self.floor = floor
         self.deadline = time.monotonic() + max_minutes * 60 if max_minutes else None
+        self.wait = wait
         self.remaining = None
+        self.reset_at = None
 
     def seen(self, rate: dict) -> None:
         self.remaining = rate["remaining"]
+        self.reset_at = dt.datetime.fromisoformat(rate["resetAt"].replace("Z", "+00:00"))
+
+    @property
+    def out_of_time(self) -> bool:
+        return self.deadline is not None and time.monotonic() >= self.deadline
 
     @property
     def spent(self) -> bool:
-        if self.deadline is not None and time.monotonic() >= self.deadline:
+        if self.out_of_time:
             return True
-        return self.remaining is not None and self.remaining <= self.floor
+        if self.remaining is None or self.remaining > self.floor:
+            return False
+        if not self.wait or self.reset_at is None:
+            return True
+        # Out of API points: wait for the hourly reset if the time allows.
+        pause = (self.reset_at - dt.datetime.now(dt.timezone.utc)).total_seconds() + 15
+        if self.deadline is not None and time.monotonic() + pause >= self.deadline:
+            return True
+        print(f"  API points used up, waiting {pause / 60:.0f} minutes for the reset", flush=True)
+        time.sleep(max(pause, 0))
+        self.remaining = None
+        return False
 
 
 def minutes(value: str | None) -> int:
@@ -152,8 +175,10 @@ def reduce_pr(pr: dict) -> dict:
         "m": minutes(pr["mergedAt"]), "d": 1 if pr["isDraft"] else 0,
         "u": pr["updatedAt"],
         "l": sorted(n["name"] for n in pr["labels"]["nodes"]),
-        "rv": sorted([minutes(r["submittedAt"]), login(r), REVIEW_STATE.get(r["state"], "C")]
+        "rv": sorted([minutes(r["submittedAt"]), login(r), REVIEW_STATE.get(r["state"], "C"),
+                      ASSOCIATION.get(r.get("authorAssociation"), "N")]
                      for r in reviews.values() if r.get("submittedAt") and login(r)),
+        "v": SCHEMA,
         "cm": sorted([minutes(c["createdAt"]), login(c)]
                      for c in pr["comments"]["nodes"] if login(c)),
         "rq": sorted(requests), "dr": sorted(drafts),
@@ -187,6 +212,9 @@ def main() -> None:
                         help="stop when this many API points are left")
     parser.add_argument("--max-minutes", type=float, default=0,
                         help="stop refreshing after this long (0: no limit)")
+    parser.add_argument("--wait-for-reset", action="store_true",
+                        help="when the API points run out, wait for the hourly reset "
+                             "and go on, as long as --max-minutes allows")
     parser.add_argument("--max-prs", type=int, default=0,
                         help="refresh at most this many pull requests (0: no limit)")
     parser.add_argument("--workers", type=int, default=3)
@@ -195,7 +223,10 @@ def main() -> None:
     owner, name = args.repo.split("/", 1)
     cache = load(args.cache)
     prs, state = cache["prs"], cache["state"]
-    budget = Budget(args.floor, args.max_minutes)
+    if state.get("schema") != SCHEMA:
+        # Records of an older version are refreshed by the walk back in time.
+        state.update(schema=SCHEMA, complete=False, resume=None)
+    budget = Budget(args.floor, args.max_minutes, args.wait_for_reset)
     now = dt.datetime.now(dt.timezone.utc)
     cutoff = (now - dt.timedelta(days=args.history_days)).isoformat()
     refreshed = 0
@@ -215,7 +246,8 @@ def main() -> None:
             conn = data["repository"]["pullRequests"]
             nodes = [n for n in conn["nodes"] if n["updatedAt"] >= cutoff]
             stale = [n["number"] for n in nodes
-                     if prs.get(str(n["number"]), {}).get("u") != n["updatedAt"]]
+                     if prs.get(str(n["number"]), {}).get("u") != n["updatedAt"]
+                     or prs[str(n["number"])].get("v") != SCHEMA]
             if args.max_prs:
                 stale = stale[:max(args.max_prs - refreshed, 0)]
             done_all = True

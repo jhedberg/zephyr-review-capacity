@@ -102,14 +102,21 @@ td.n, th.n { text-align: right; font-family: var(--mono); font-variant-numeric: 
 td.login { font-family: var(--mono); }
 ul.plain { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; max-width: 72ch; font-size: 14px; color: var(--ink-2); }
 #view-all, #view-area { display: flex; flex-direction: column; gap: 40px; }
-#overview { font-size: 13px; }
-#overview th, #overview td { padding-right: 10px; }
+#overview { font-size: 12.5px; }
+#overview th, #overview td { padding-right: 8px; }
+.cover { display: flex; height: 28px; gap: 2px; }
+.cover span { min-width: 2px; border-radius: 3px; }
+.cover .c2 { background: var(--accent); }
+.cover .c1 { background: var(--series-2); }
+.cover .c0 { background: var(--ink); }
+.keys { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--ink-2); }
+.keys i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
 .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--rule); }
 .tabs button { font: 600 15px var(--font); color: var(--ink-3); background: none; border: 0; border-bottom: 3px solid transparent; padding: 10px 16px; margin-bottom: -1px; cursor: pointer; }
 .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
 #overview th button { font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: inherit; }
 #overview th[aria-sort] button { color: var(--ink); }
-#overview td.area { min-width: 170px; }
+#overview td.area { min-width: 150px; }
 #overview td.area button { font: 500 14px var(--font); color: var(--accent-ink); background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
 #overview td.area button:hover { text-decoration: underline; }
 #overview td.bad { font-weight: 700; color: var(--ink); }
@@ -153,7 +160,7 @@ ul.plain { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
       <div class="strip chart" id="strip"></div>
     </div>
     <div class="scroll"><table id="overview"></table></div>
-    <p class="note">A dot marks a value in the worst tenth of the areas shown. Listed: Maintainers and Collaborators. Active: those of them who reviewed about one pull request a month or more. Load: pull requests arriving per week for each active person. From list: the share of approvals given by listed people. Answered: review requests to listed people that were answered. Unanswered: the share of pull requests on which nobody listed took part. 1st review: median days from ready to the first review by anyone. Waiting: open, ready pull requests with no review after two weeks. Counted with a comment as an answer and with the excuse rule on; open an area for the other ways of counting.</p>
+    <p class="note">A dot marks a value in the worst tenth of the areas shown. Listed: Maintainers and Collaborators. Active: those of them who reviewed about one pull request a month or more. Dependable: those who answer at least half of the requests they get. Load: pull requests arriving per week for each active person. Short of 2: the share of pull requests that have fewer than two dependable listed people left once their author is set aside, so cannot get both approvals from the list. From list: the share of approvals given by listed people. Answered: review requests to listed people that were answered. Unanswered: the share of pull requests on which nobody listed took part. 1st review: median days from ready to the first review by anyone. Waiting: open, ready pull requests with no review after two weeks. Counted with a comment as an answer and with the excuse rule on; open an area for the other ways of counting.</p>
   </div>
 </section>
 </div>
@@ -188,7 +195,18 @@ ul.plain { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
     <p class="verdict" id="verdict"></p>
     <div id="roster"></div>
     <p class="note" id="area-note"></p>
-    <p class="note" id="unlisted"></p>
+  </div>
+  <div class="panel">
+    <h3>Can a pull request here get two approvals from the list?</h3>
+    <div class="cover" id="cover" role="img"></div>
+    <div class="keys" id="cover-keys"></div>
+    <p class="verdict" id="cover-text"></p>
+    <p class="note">A pull request needs two approvals from people other than its author. This counts, for each pull request that became ready in the period, the listed people who answer at least half of their requests, leaving out the author. It follows the period and the counting options above.</p>
+  </div>
+  <div class="panel">
+    <h3>Reviewers who are not on the list</h3>
+    <p class="note">An approval by any member of the organization counts towards a merge, so these people already carry part of the area's review. The most active of them are candidates for the list.</p>
+    <div class="scroll"><table id="candidates"></table></div>
   </div>
 </section>
 
@@ -390,12 +408,51 @@ function render() {
   $("area-note").textContent = answers.length
     ? answers.length + " pull requests asked the list for review in this period. On average " + f1(mean) + " of the people asked took part."
     : "No pull request asked the list for review in this period.";
-  const unlisted = [...stat.entries()].filter(([i, s]) => !AREA.roster.has(L[i]) && s.reviewed > 0).sort((a, b) => b[1].reviewed - a[1].reviewed).slice(0, 6);
-  const u = $("unlisted"); u.textContent = "";
-  if (unlisted.length) {
-    u.appendChild(document.createTextNode("Most active reviewers not on this list: "));
-    unlisted.forEach(([i, s], k) => { if (k) u.appendChild(document.createTextNode(", ")); u.appendChild(profile(L[i])); u.appendChild(document.createTextNode(" (" + s.reviewed + ")")); });
+  /* two approvals from the list? */
+  const dependable = people.filter((p) => p.s.req >= MIN_REQ && p.rate >= 0.5);
+  const depIdx = new Set(dependable.map((p) => L.indexOf(p.w)));
+  const readyPrs = P.filter((p) => p[3] >= F && p[3] < T && p[1] >= 0);
+  const cover = [0, 0, 0], byAuthor = new Map();
+  for (const p of readyPrs) { cover[Math.min(2, depIdx.size - (depIdx.has(p[1]) ? 1 : 0))]++; byAuthor.set(p[1], (byAuthor.get(p[1]) || 0) + 1); }
+  const bar = $("cover"), keys = $("cover-keys"); bar.textContent = ""; keys.textContent = "";
+  const parts = [["c2", cover[2], "two or more left"], ["c1", cover[1], "one left"], ["c0", cover[0], "none left"]];
+  for (const [cls, n, label] of parts) {
+    if (n) { const seg = el("span", cls); seg.style.flex = n + " 1 0"; seg.title = n + " pull requests: " + label; bar.appendChild(seg); }
+    const k = el("span"); const sw = el("i"); sw.className = ""; sw.style.background = css(cls === "c2" ? "--accent" : cls === "c1" ? "--series-2" : "--ink"); k.appendChild(sw); k.appendChild(document.createTextNode(label + ": " + n)); keys.appendChild(k);
   }
+  bar.setAttribute("aria-label", parts.map(([, n, label]) => n + " " + label).join(", "));
+  const ct = $("cover-text"); ct.textContent = "";
+  const cs = (t) => ct.appendChild(document.createTextNode(t));
+  const cn = (a) => ct.appendChild(el("span", "names", a.join(", ")));
+  if (!readyPrs.length) { cs("No pull request became ready for review in this period."); }
+  else {
+    const short = cover[0] + cover[1];
+    if (!dependable.length) cs("Nobody on the list answers at least half of their requests. ");
+    else { cn(dependable.map((p) => p.w)); cs(dependable.length === 1 ? " is the one listed person who answers at least half of their requests. " : " are the listed people who answer at least half of their requests. "); }
+    cs(short + " of the " + readyPrs.length + " pull requests (" + pc(short / readyPrs.length) + ") have fewer than two of them left once the author is set aside. ");
+    const [topIdx, topN] = [...byAuthor.entries()].sort((x, y) => y[1] - x[1])[0];
+    if (depIdx.has(topIdx)) { cn([L[topIdx]]); cs(" brings " + pc(topN / readyPrs.length) + " of the pull requests and cannot approve those. "); }
+    if (dependable.length === 2 && short) cs("One more such person would close the gap.");
+    else if (dependable.length < 2) cs("It takes three such people for every pull request to have two.");
+  }
+
+  /* reviewers who are not listed */
+  const STANDING = { 2: "member of the organization", 1: "outside collaborator", 0: "not a member", "-1": "not known yet" };
+  const outside = [...stat.entries()].filter(([i, s]) => !AREA.roster.has(L[i]) && (s.approved >= 3 || s.reviewed >= 5)).sort((a, b) => b[1].approved - a[1].approved || b[1].reviewed - a[1].reviewed).slice(0, 8);
+  const ctab = $("candidates"); ctab.textContent = "";
+  if (outside.length) {
+    const h = el("thead"), r0 = el("tr");
+    [["Reviewer", ""], ["Reviewed", "n"], ["Approved", "n"], ["Share of the area's pull requests", "n"], ["Last review", "n"], ["Standing", ""]].forEach(([t, c]) => r0.appendChild(el("th", c, t)));
+    h.appendChild(r0); ctab.appendChild(h);
+    const body = el("tbody");
+    for (const [i, st] of outside) {
+      const tr = el("tr"), who = el("td", "login"); who.appendChild(profile(L[i])); tr.appendChild(who);
+      [st.reviewed, st.approved, readyPrs.length ? pc(st.reviewed / readyPrs.length) : "n/a", st.last ? iso(st.last) : ""].forEach((x) => tr.appendChild(el("td", "n", String(x))));
+      tr.appendChild(el("td", null, STANDING[(AREA.standing || [])[i] ?? -1]));
+      body.appendChild(tr);
+    }
+    ctab.appendChild(body);
+  } else { const tr = el("tr"); tr.appendChild(el("td", null, "Nobody outside the list reviewed five or approved three pull requests here in this period.")); ctab.appendChild(tr); }
 
   /* flow */
   const opened = P.filter((p) => p[2] >= F && p[2] < T), merged = P.filter((p) => p[4] >= F && p[4] < T);
@@ -445,15 +502,17 @@ const COLS = [
   { key: "name", label: "Area", worse: 0 },
   { key: "listed", label: "Listed", worse: 0, fmt: (v) => v },
   { key: "active", label: "Active", worse: -1, fmt: (v) => v },
+  { key: "dependable", label: "Dependable", worse: -1, fmt: (v) => v },
   { key: "perWeek", label: "PRs/week", worse: 0, fmt: f1 },
   { key: "load", label: "Load", worse: 1, fmt: (v) => v === Infinity ? "nobody active" : f1(v) },
+  { key: "short", label: "Short of 2", worse: 1, fmt: pc },
   { key: "fromList", label: "From list", worse: -1, fmt: pc },
   { key: "answer", label: "Answered", worse: -1, fmt: pc },
   { key: "silent", label: "Unanswered", worse: 1, fmt: pc },
   { key: "firstReview", label: "1st review (d)", worse: 1, fmt: f1 },
   { key: "waiting", label: "Waiting", worse: 1, fmt: (v) => v },
 ];
-const SORTS = [["load", -1, "Needs reviewers"], ["answer", 1, "Lowest answer rate"], ["silent", -1, "Most left unanswered"], ["firstReview", -1, "Slowest first review"], ["waiting", -1, "Most waiting"]];
+const SORTS = [["load", -1, "Needs reviewers"], ["short", -1, "Cannot reach two approvals"], ["answer", 1, "Lowest answer rate"], ["silent", -1, "Most left unanswered"], ["firstReview", -1, "Slowest first review"], ["waiting", -1, "Most waiting"]];
 
 function areaRows() {
   const days = state.days || 90, weeks = days / 7;
@@ -465,6 +524,8 @@ function areaRows() {
       fromList: w.approvals >= 5 ? w.listed_approvals / w.approvals : null,
       answer: w.asks >= 5 ? w.answered / w.asks : null,
       silent: w.asked_prs >= 5 ? w.silent_prs / w.asked_prs : null,
+      dependable: w.dependable,
+      short: w.cover[0] + w.cover[1] + w.cover[2] >= 5 ? (w.cover[0] + w.cover[1]) / (w.cover[0] + w.cover[1] + w.cover[2]) : null,
       firstReview: w.first_review, waiting: a.waiting, unlisted: w.unlisted,
     };
   });
@@ -540,7 +601,7 @@ function drawStrip(rows, col) {
   const pts = rows.filter((r) => r[col.key] != null);
   if (!pts.length) return;
   const finite = pts.map((r) => r[col.key]).filter((v) => v !== Infinity).sort((a, b) => a - b);
-  const isShare = ["fromList", "answer", "silent"].includes(col.key);
+  const isShare = ["fromList", "answer", "silent", "short"].includes(col.key);
   const cap = isShare ? 1 : (finite.length ? finite[Math.min(finite.length - 1, Math.floor(finite.length * 0.97))] || 1 : 1);
   const hasInf = pts.some((r) => r[col.key] === Infinity);
   const W = host.clientWidth || 600, H = 74, l = 8, r = hasInf ? 110 : 16;

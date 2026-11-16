@@ -73,8 +73,11 @@ class PR:
         # does not always spell them as the repository does.
         self.labels = {label.lower() for label in raw["l"]}
         self.title = raw["t"]
-        self.reviews = [(t, w, s) for t, w, s in raw["rv"]
-                        if not is_bot(w) and w != self.author and s != "P"]
+        # a review is [time, login, state] or, from newer fetches,
+        # [time, login, state, association]
+        self.reviews = [(r[0], r[1], r[2]) for r in raw["rv"]
+                        if not is_bot(r[1]) and r[1] != self.author and r[2] != "P"]
+        self.standing = {r[1]: r[3] for r in raw["rv"] if len(r) > 3}
         self.comments = [(t, w) for t, w in raw["cm"] if not is_bot(w) and w != self.author]
         self.requests: dict[str, list] = {}
         for t, w, asked in raw["rq"]:
@@ -102,7 +105,8 @@ class PR:
         return out
 
 
-def build_area(name: str, area: dict, prs: list[PR], maintains: dict, now: int) -> dict:
+def build_area(name: str, area: dict, prs: list[PR], maintains: dict, now: int,
+               standing: dict) -> dict:
     maintainers = list(area.get("maintainers") or [])
     collaborators = [c for c in (area.get("collaborators") or []) if c not in maintainers]
     roster = maintainers + collaborators
@@ -157,11 +161,17 @@ def build_area(name: str, area: dict, prs: list[PR], maintains: dict, now: int) 
             revs.append([idx(who), row, first, approved, last])
     return {"name": name, "status": area.get("status"), "label": primary_label(name, area),
             "maintainers": maintainers, "collaborators": collaborators,
-            "logins": logins, "prs": rows, "asks": asks, "revs": revs}
+            "logins": logins,
+            # 2 member of the organization, 1 outside collaborator, 0 neither,
+            # -1 not known yet
+            "standing": [{"M": 2, "C": 1, "N": 0}.get(standing.get(w), -1) for w in logins],
+            "prs": rows, "asks": asks, "revs": revs}
 
 
 WINDOWS = (30, 90, 180, 365)
 WAITING = 14 * DAY
+DEPENDABLE = 0.5   # answers at least this share of the requests
+MIN_REQUESTS = 5
 
 
 def median(values: list) -> float | None:
@@ -186,6 +196,7 @@ def summarize(data: dict, now: int) -> dict:
         start = now - days * DAY
         asks = answered = m_asks = m_answered = 0
         per_pr: dict[int, int] = {}
+        per_person: dict[int, list] = {}
         for who, row, asked, reviewed, commented, flags in data["asks"]:
             if asked < start:
                 continue
@@ -198,6 +209,9 @@ def summarize(data: dict, now: int) -> dict:
             asks += 1
             answered += hit
             per_pr[row] = per_pr.get(row, 0) + hit
+            tally = per_person.setdefault(who, [0, 0])
+            tally[0] += 1
+            tally[1] += hit
             if who in maintainers:
                 m_asks += 1
                 m_answered += hit
@@ -214,6 +228,16 @@ def summarize(data: dict, now: int) -> dict:
         total_reviews = sum(reviewed_by.values())
         ready = [p for p in prs if p[3] >= start]
         merged = [p for p in prs if p[4] >= start]
+        # Listed people an author can count on, and how many pull requests
+        # are left with fewer than two of them once their author is set aside.
+        dependable = {who for who, (n, hits) in per_person.items()
+                      if n >= MIN_REQUESTS and hits / n >= DEPENDABLE}
+        cover = [0, 0, 0]
+        authors: dict[int, int] = {}
+        for p in ready:
+            cover[min(2, len(dependable - {p[1]}))] += 1
+            authors[p[1]] = authors.get(p[1], 0) + 1
+        top_author = max(authors, key=authors.get) if authors else -1
         first_review = [max(0, p[6] - p[3]) / DAY for p in ready if p[6]]
         to_merge = [max(0, p[4] - p[3]) / DAY for p in merged if p[3]]
         unlisted = sorted(((n, logins[w]) for w, n in reviewed_by.items() if w not in roster),
@@ -225,6 +249,9 @@ def summarize(data: dict, now: int) -> dict:
             "answers": sum(per_pr.values()),
             "m_asks": m_asks, "m_answered": m_answered,
             "active": active, "approvals": approvals, "listed_approvals": listed_approvals,
+            "dependable": len(dependable), "cover": cover,
+            "top_author": logins[top_author] if top_author >= 0 else None,
+            "top_author_prs": authors.get(top_author, 0),
             "top_share": round(max(reviewed_by.values()) / total_reviews, 3) if total_reviews else None,
             "first_review": None if not first_review else round(median(first_review), 2),
             "to_merge": None if not to_merge else round(median(to_merge), 2),
@@ -250,6 +277,9 @@ def main() -> None:
         for label in area.get("labels") or []:
             LABEL_USE[label.lower()] = LABEL_USE.get(label.lower(), 0) + 1
     prs = [PR(raw) for raw in cache["prs"].values()]
+    standing: dict[str, str] = {}
+    for pr in prs:
+        standing.update(pr.standing)
     fetched = cache["state"].get("fetched_at")
     now = int(dt.datetime.fromisoformat(fetched).timestamp() // 60)
 
@@ -298,7 +328,7 @@ def main() -> None:
         label = primary_label(name, area)
         if not label:
             continue
-        data = build_area(name, area, by_label.get(label.lower(), []), maintains, now)
+        data = build_area(name, area, by_label.get(label.lower(), []), maintains, now, standing)
         file = slug(name) + ".json"
         (args.out / file).write_text(json.dumps(data, separators=(",", ":")))
         index.append({"name": name, "file": file, "status": area.get("status"),
@@ -313,6 +343,8 @@ def main() -> None:
         "repo": args.repo, "generated": fetched, "now": now,
         "oldest": cache["state"].get("oldest"), "complete": cache["state"].get("complete"),
         "pull_requests": len(prs), "truncated": sum(1 for r in cache["prs"].values() if r.get("x")),
+        "standing_known": round(sum(1 for r in cache["prs"].values() if r.get("v", 1) >= 2)
+                                / max(len(cache["prs"]), 1), 3),
         "areas": index}, separators=(",", ":")))
     (args.out / "summary.json").write_text(json.dumps(
         {"now": now, "windows": list(WINDOWS), "areas": summary}, separators=(",", ":")))
