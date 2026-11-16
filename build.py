@@ -59,7 +59,9 @@ class PR:
         self.author = raw["a"]
         self.created, self.closed, self.merged = raw["c"], raw["cl"], raw["m"]
         self.draft_now = raw["d"]
-        self.labels = set(raw["l"])
+        # GitHub treats label names without regard to case, and MAINTAINERS.yml
+        # does not always spell them as the repository does.
+        self.labels = {label.lower() for label in raw["l"]}
         self.title = raw["t"]
         self.reviews = [(t, w, s) for t, w, s in raw["rv"]
                         if not is_bot(w) and w != self.author and s != "P"]
@@ -129,7 +131,7 @@ def build_area(name: str, area: dict, prs: list[PR], maintains: dict, now: int) 
             others = sum(1 for t, w in approvals if w != who and t <= asked + EXCUSE)
             if (pr.closed and pr.closed - asked < EXCUSE) or others >= 2:
                 flags |= EXCUSED
-            other_areas = maintains.get(who, set()) - {primary_label(name, area)}
+            other_areas = maintains.get(who, set()) - {primary_label(name, area).lower()}
             if any(label in pr.labels for label in other_areas):
                 flags |= OWN_AREA
             reviewed = min((t for t, w, _ in pr.reviews if w == who and t >= asked), default=0)
@@ -171,7 +173,7 @@ def main() -> None:
         label = primary_label(name, area)
         for who in area.get("maintainers") or []:
             if label:
-                maintains.setdefault(who, set()).add(label)
+                maintains.setdefault(who, set()).add(label.lower())
     by_label: dict[str, list] = {}
     for pr in prs:
         for label in pr.labels:
@@ -185,7 +187,7 @@ def main() -> None:
         label = primary_label(name, area)
         if not label:
             continue
-        data = build_area(name, area, by_label.get(label, []), maintains, now)
+        data = build_area(name, area, by_label.get(label.lower(), []), maintains, now)
         file = slug(name) + ".json"
         (args.out / file).write_text(json.dumps(data, separators=(",", ":")))
         index.append({"name": name, "file": file, "status": area.get("status"),

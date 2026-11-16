@@ -26,7 +26,8 @@ The address bar holds the current view and can be shared.
 
 - An area's pull requests are those carrying the area's own label (the label
   named after the area, or else its first label). Areas that share a label
-  share their pull requests.
+  share their pull requests. Label names are compared without regard to case,
+  as GitHub does.
 - A request counts once per person and pull request, at the first request. It
   is answered when the person reviews at or after the request and before the
   end of the period (or comments, if that option is on).
