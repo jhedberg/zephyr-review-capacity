@@ -628,7 +628,7 @@ function render() {
   const ctab = $("candidates"); ctab.textContent = "";
   if (outside.length) {
     const h = el("thead"), r0 = el("tr");
-    [["Reviewer", ""], ["Reviewed", "n"], ["Approved", "n"], ["Share of the area's pull requests", "n"], ["Reviewed more than", "n"], ["Last review", "n"], ["Candidate", ""], ["Organization", ""]].forEach(([t, c]) => r0.appendChild(el("th", c, t)));
+    [["Reviewer", ""], ["Reviewed", "n"], ["Approved", "n"], ["Share", "n"], ["Reviewed more than", "n"], ["Last review", "n"], ["Candidate", ""], ["Organization", ""]].forEach(([t, c]) => r0.appendChild(el("th", c, t)));
     h.appendChild(r0); ctab.appendChild(h);
     const body = el("tbody");
     for (const [i, st] of outside) {
@@ -639,7 +639,7 @@ function render() {
       body.appendChild(tr);
       attachTip(tr, L[i], () => {
         const behind = people.filter((p) => p.s.reviewed < st.reviewed).map((p) => p.w);
-        return [["", "Reviewed " + st.reviewed + " of the " + readyPrs.length + " pull requests that became ready in the period, and approved " + st.approved + "."],
+        return [["Share", (readyPrs.length ? pc(st.reviewed / readyPrs.length) : "n/a") + ": reviewed " + st.reviewed + " of the " + readyPrs.length + " pull requests that became ready for review in this area in the period. Several people review the same pull request, so the shares of different people add up to more than 100%."], ["", "Approved " + st.approved + " of them."],
           ["Reviewed more than", behind.length ? behind.join(", ") : "nobody listed"],
           ["", isCandidate(st) ? "A candidate: ahead of at least half of the " + listedCounts.length + " listed people." : "Not a candidate: behind more than half of the " + listedCounts.length + " listed people" + (st.reviewed < 5 ? ", and fewer than five reviews." : ".")]];
       });

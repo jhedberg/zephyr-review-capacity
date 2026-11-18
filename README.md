@@ -28,30 +28,46 @@ pull requests, so it takes three.
 There are two views.
 
 **All areas** compares the areas with each other, for whoever looks after the
-project as a whole. Each area has a review cover in words (no regular
-reviewer, one, thin, covered), the make-up of its list, the pull requests
-arriving per week and per regular reviewer, the share of pull requests not
-covered, the share of merged pull requests whose two approvals both came from
-regular reviewers, the share nobody listed took part in, the number of open pull
-requests with its change over the period and a small line of its course, the
-time to the second approval, the pull requests waiting, and the number of candidates for
-the list: people who are not listed but reviewed more of the area's pull
-requests than at least half of the listed people did. Sort by any column, filter by cover, or
-use "Show first"; a legend above the table defines each choice. The cover state
-carries a fixed colour (red for no or one regular reviewer, green for
-covered). In the three columns with a real spread (pull requests per regular
-reviewer, time to the second approval, pull requests waiting) a mark shows the
-worst and the best tenth of the areas in scope; the percentage columns are not
-coloured, because most areas sit at 0% or 100% there. A strip shows where
-every area sits on the column the table is sorted by. Pointing at a figure in
-the table, or tapping it, shows the names and counts behind it: who the regular
-and occasional reviewers are, who the candidates are, how the approvals split. This view offers four fixed periods and one way of counting; its
-figures come from `data/summary.json`.
+project as a whole. Each area has:
+
+- its review cover in words (no regular reviewer, one, thin, covered);
+- the make-up of its list (regular, occasional and silent reviewers);
+- how the Maintainer's reviewing compares with everyone else's;
+- the pull requests arriving per week for each regular reviewer;
+- the share of pull requests not covered;
+- the number of open pull requests, its change over the period and a small
+  line of its course;
+- the time to the second approval;
+- the pull requests waiting two weeks for a first review, and those that have
+  two approvals but wait for their assignee;
+- the candidates for the list: people who are not listed but reviewed more of
+  the area's pull requests than at least half of the listed people did.
+
+Sort by any column, filter by cover, or use "Show first"; a legend above the
+table defines each term and choice. The two states carry fixed colours. In the
+columns with a real spread a mark shows the worst and the best tenth of the
+areas in scope; the percentage column is not coloured, because most areas sit
+at 0% or 100% there. A strip shows where every area sits on the column the
+table is sorted by. Pointing at a figure, or tapping it, shows the names and
+counts behind it. This view offers four fixed periods and one way of counting;
+its figures come from `data/summary.json`.
+
+A merge also needs an approval from an assignee, usually a Maintainer. The
+page therefore shows how the Maintainer's reviewing compares with everyone
+else's (reviews the most, second, writes most of the code, behind, or no
+Maintainer), always next to the share of the area's pull requests the
+Maintainer wrote, since nobody reviews their own. Only reviews are counted:
+triage, design and release work do not show. Assignees are added and changed
+by hand, so the page takes whoever is assigned now, counts any current
+assignee's approval, and counts a wait for an area only where one of its own
+Maintainers is assigned.
 
 **One area** is for the area's own maintainers. For each Maintainer and
 Collaborator it shows the share of review requests they answered, their group,
 and a line you can move: Collaborators below it would come off the list at
-that level. Below that: the review cover as a bar with a sentence naming who
+that level. Pointing at a row of any table there shows what is behind it, such
+as how a person's requests were answered or left out. Below that: the
+Maintainer's standing and the wait for the assignee; the review cover as a bar with a sentence naming who
 is counted and whose pull requests are short; where the two approvals of the
 merged pull requests actually came from; the most active reviewers who are not
 on the list as candidates for it, marked where GitHub shows them as public
@@ -124,7 +140,7 @@ Nowhere but in the published site; nothing of it is in this repository.
   before compression. A record holds the title, author, labels, the creation,
   close and merge times, and lists of reviews (time, login, state), comments
   (time, login), review requests (time, login, asked or withdrawn) and draft
-  changes. A review also carries what GitHub reports as the reviewer's
+  changes, and the current assignees. A review also carries what GitHub reports as the reviewer's
   association with the repository. The workflow's token is not a member of
   the organization, so it sees only public memberships: private members are
   reported like people who are not members. Times are minutes since the epoch. Pull requests not updated for a
