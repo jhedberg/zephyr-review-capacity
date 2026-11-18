@@ -6,21 +6,59 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Zephyr Review Capacity</title>
+<script>
+/* the viewer's colour theme, before the first paint */
+try { const t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) { /* no storage */ }
+</script>
 <style>
+/* Colours. Without a choice the page follows the system: light, or a soft dark that keeps text and
+   marks below white and full saturation. The viewer's own choice (data-theme, kept in the browser)
+   wins. */
 :root {
-  --bg: #f4f6f9; --surface: #ffffff; --ink: #131820; --ink-2: #485262; --ink-3: #6f7a8b;
+  --bg: #f4f6f9; --surface: #ffffff; --ink: #131820; --ink-2: #485262; --ink-3: #667182;
   --rule: #dde2ea; --track: #e6eaf0; --accent: #2a78d6; --accent-ink: #1c5cab;
-  --series-2: #eb6834; --good: #0ca30c; --bad: #d03b3b; --below: #b8c0cc; --warn-bg: #fff4d6; --warn-ink: #6b4a00;
-  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --series-2: #eb6834; --good: #0a8f0a; --bad: #d03b3b; --below: #b8c0cc; --warn-bg: #fff4d6; --warn-ink: #6b4a00;
+  color-scheme: light;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #101318; --surface: #181c23; --ink: #eceff4; --ink-2: #b6bdc9; --ink-3: #8690a0;
-    --rule: #2a303a; --track: #252b35; --accent: #3987e5; --accent-ink: #86b6ef;
-    --series-2: #d95926; --below: #4a5261; --warn-bg: #3a2f10; --warn-ink: #f0d58a;
-    color-scheme: dark;
+  :root:not([data-theme]) {
+  --bg: #1f2327; --surface: #24292e; --ink: #d3d8de; --ink-2: #b3bac4; --ink-3: #949da8;
+  --rule: #363c44; --track: #30363d; --accent: #5b8fd6; --accent-ink: #9db8e4;
+  --series-2: #cf7a4e; --good: #6fb97c; --bad: #dc8a8a; --below: #4d5560; --warn-bg: #3a3426; --warn-ink: #d8ba74;
+  color-scheme: dark;
   }
+}
+:root[data-theme="light"] {
+  --bg: #f4f6f9; --surface: #ffffff; --ink: #131820; --ink-2: #485262; --ink-3: #667182;
+  --rule: #dde2ea; --track: #e6eaf0; --accent: #2a78d6; --accent-ink: #1c5cab;
+  --series-2: #eb6834; --good: #0a8f0a; --bad: #d03b3b; --below: #b8c0cc; --warn-bg: #fff4d6; --warn-ink: #6b4a00;
+  color-scheme: light;
+}
+:root[data-theme="paper"] {
+  --bg: #f5f1e8; --surface: #fdfbf5; --ink: #2b2620; --ink-2: #51493f; --ink-3: #6b6257;
+  --rule: #e1d9c9; --track: #ebe5d8; --accent: #3d6ea8; --accent-ink: #2f5687;
+  --series-2: #c95f2a; --good: #3f7a4a; --bad: #a83232; --below: #c9c0af; --warn-bg: #f3e7c5; --warn-ink: #6b4c0c;
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --bg: #1f2327; --surface: #24292e; --ink: #d3d8de; --ink-2: #b3bac4; --ink-3: #949da8;
+  --rule: #363c44; --track: #30363d; --accent: #5b8fd6; --accent-ink: #9db8e4;
+  --series-2: #cf7a4e; --good: #6fb97c; --bad: #dc8a8a; --below: #4d5560; --warn-bg: #3a3426; --warn-ink: #d8ba74;
+  color-scheme: dark;
+}
+:root[data-theme="dim"] {
+  --bg: #22272e; --surface: #2a3038; --ink: #b8c4d0; --ink-2: #a1adba; --ink-3: #909caa;
+  --rule: #3a424b; --track: #323941; --accent: #5a8fcc; --accent-ink: #86aedb;
+  --series-2: #c98058; --good: #73aa80; --bad: #cf8a8a; --below: #4a5360; --warn-bg: #39352a; --warn-ink: #c5a965;
+  color-scheme: dark;
+}
+:root[data-theme="contrast"] {
+  --bg: #0e1218; --surface: #161b23; --ink: #eceff4; --ink-2: #b6bdc9; --ink-3: #98a3b5;
+  --rule: #2a303a; --track: #252b35; --accent: #3987e5; --accent-ink: #86b6ef;
+  --series-2: #d95926; --good: #4fc96a; --bad: #ff7d7d; --below: #4a5261; --warn-bg: #3a2f10; --warn-ink: #f0d58a;
+  color-scheme: dark;
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--ink); font: 400 16px/1.55 var(--font); padding: 32px 16px 64px; }
@@ -32,6 +70,9 @@ h3 { font-size: 17px; margin: 0; }
 p { margin: 0; max-width: 70ch; }
 a { color: var(--accent-ink); text-underline-offset: 2px; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.topline { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 20px; }
+.theme { display: flex; align-items: center; gap: 8px; font: 500 12px/1.3 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+.theme select { font: 500 13px var(--font); letter-spacing: 0; text-transform: none; padding: 4px 8px; }
 .kicker { font: 500 12px/1.3 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
 .lede { font-size: 18px; color: var(--ink-2); }
 .note { font-size: 14px; color: var(--ink-3); }
@@ -161,12 +202,30 @@ details.explain summary { cursor: pointer; font: 600 14px var(--font); color: va
 .strip text { font: 400 11px var(--mono); fill: var(--ink-3); }
 .strip rect.t { cursor: pointer; }
 [hidden] { display: none !important; }
+@media (min-width: 1400px) {
+  body { padding-inline: 32px; }
+  main { max-width: 1680px; }
+  #view-area > section:first-of-type { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); grid-template-rows: auto auto 1fr; gap: 16px 20px; align-items: start; }
+  #view-area > section:first-of-type > .panel:nth-child(1) { grid-column: 1; grid-row: 1 / span 3; }
+  #view-area > section:first-of-type > .panel:nth-child(2), #view-area > section:first-of-type > .panel:nth-child(3), #view-area > section:first-of-type > .panel:nth-child(4) { grid-column: 2; }
+  #view-area > section:first-of-type > .panel:nth-child(5) { grid-column: 1 / -1; }
+  #view-area > section:nth-of-type(2) { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px 20px; align-items: start; }
+  #view-area > section:nth-of-type(2) > h2, #view-area > section:nth-of-type(2) > .tiles { grid-column: 1 / -1; }
+  ul.plain { display: block; max-width: none; columns: 2; column-gap: 48px; }
+  ul.plain li { break-inside: avoid; margin-bottom: 8px; }
+}
 </style>
 </head>
 <body>
 <main>
 <header>
-  <div class="kicker" id="stamp">Loading</div>
+  <div class="topline">
+    <div class="kicker" id="stamp">Loading</div>
+    <label class="theme">Theme <select id="theme" aria-label="Colour theme">
+      <option value="">System</option><option value="light">Light</option><option value="paper">Paper</option>
+      <option value="dark">Dark</option><option value="dim">Dim</option><option value="contrast">Dark, high contrast</option>
+    </select></label>
+  </div>
   <h1>Zephyr review capacity</h1>
   <p class="lede">Who answers when a pull request asks for review. One view compares all areas and shows which need attention; the other looks at one area and the people listed for it.</p>
   <p class="warn" id="coverage" hidden></p>
@@ -1116,6 +1175,13 @@ async function start() {
   $("tab-area").addEventListener("click", () => { state.view = "area"; showView(); render(); });
   await loadArea(state.area);
   showView();
+  const pick = $("theme");
+  pick.value = document.documentElement.dataset.theme || "";
+  pick.addEventListener("change", () => {
+    if (pick.value) document.documentElement.dataset.theme = pick.value; else delete document.documentElement.dataset.theme;
+    try { if (pick.value) localStorage.setItem("theme", pick.value); else localStorage.removeItem("theme"); } catch (e) { /* no storage */ }
+    if (state.view === "all") renderAll(); else if (AREA) render();
+  });
   let timer; window.addEventListener("resize", () => { clearTimeout(timer); timer = setTimeout(() => { if (state.view === "all") renderAll(); else { drawOpen(lastBuckets, lastOpenStart); drawChart(lastBuckets); } }, 150); });
   if (window.matchMedia) window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { drawOpen(lastBuckets, lastOpenStart); drawChart(lastBuckets); });
 }
