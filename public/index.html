@@ -284,7 +284,7 @@ details.explain summary { cursor: pointer; font: 600 14px var(--font); color: va
           <dl>
             <div><dt>By cover state</dt><dd>Groups the areas by the four states on the left, the weakest state first, and the busiest area first within a state.</dd></div>
             <div><dt>Largest share not covered</dt><dd>Orders by a number: the percentage of pull requests with fewer than two regular reviewers besides the author. Two areas in the same state can be far apart here, such as 45% and 100%.</dd></div>
-            <div><dt>Most per regular reviewer</dt><dd>Pull requests arriving each week, divided by the regular reviewers. Areas with none come first.</dd></div>
+            <div><dt>Most per regular reviewer</dt><dd>Pull requests arriving each week, divided by the regular reviewers. Areas with no regular reviewer have no such figure and follow at the end, the busiest first; "No regular" under Review cover shows only those.</dd></div>
             <div><dt>Maintainer behind</dt><dd>Orders by the Maintainer state on the left, areas without a Maintainer first.</dd></div>
             <div><dt>Most waiting on the assignee</dt><dd>Open pull requests that have two approvals but none from their assignee, where one of the area's Maintainers is assigned.</dd></div>
             <div><dt>Fastest growing queue</dt><dd>The change in the number of open pull requests over the period: opened, minus merged, minus closed without merging.</dd></div>
@@ -849,6 +849,8 @@ function renderAll() {
     if (x == null && y == null) return a.name.localeCompare(b.name);
     if (x == null) return 1;
     if (y == null) return -1;
+    /* no regular reviewer gives no figure to divide by: after the areas that have one, either way */
+    if (x === Infinity || y === Infinity) return x === y ? b.perWeek - a.perWeek : (x === Infinity ? 1 : -1);
     if (col.key === "name") return state.dir * x.localeCompare(y);
     return x === y ? b.perWeek - a.perWeek : state.dir * (x - y);
   });
