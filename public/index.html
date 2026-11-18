@@ -94,6 +94,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); height: 28px; ma
 .chart svg { display: block; width: 100%; height: auto; overflow: visible; }
 .chart text { font: 400 11px var(--mono); fill: var(--ink-3); }
 .tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--surface); font: 400 12px/1.5 var(--mono); padding: 7px 10px; border-radius: 4px; white-space: nowrap; z-index: 5; }
+.tip.wide { white-space: normal; max-width: min(380px, calc(100vw - 24px)); font: 400 13px/1.45 var(--font); padding: 10px 12px; }
+.tip.wide b { font-weight: 600; }
+.tip.wide div + div { margin-top: 4px; }
+#overview tbody td.n, #overview tbody td.status { cursor: help; }
 .scroll { overflow-x: auto; }
 table { border-collapse: collapse; width: 100%; font-size: 14px; }
 th, td { text-align: left; padding: 8px 12px 8px 0; border-top: 1px solid var(--rule); }
@@ -131,9 +135,9 @@ ul.plain { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
 .mark-best::before { content: "\25CF"; color: var(--good); font-size: 11px; margin-right: 5px; }
 details.explain { border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); padding: 12px 0; }
 details.explain summary { cursor: pointer; font: 600 14px var(--font); color: var(--ink-2); }
-.defs { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px 32px; margin-top: 14px; }
+.defs { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 18px 28px; margin-top: 14px; }
 .defs h4 { margin: 0 0 8px; font: 500 12px/1.3 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); }
-.defs dl { margin: 0; display: grid; gap: 8px; font-size: 14px; }
+.defs dl { margin: 0; display: grid; gap: 8px; font-size: 13px; line-height: 1.45; }
 .defs dt { font-weight: 600; color: var(--ink); }
 .defs dd { margin: 2px 0 0; color: var(--ink-2); }
 #overview thead th { vertical-align: bottom; max-width: 96px; white-space: normal; line-height: 1.35; }
@@ -176,8 +180,17 @@ details.explain summary { cursor: pointer; font: 600 14px var(--font); color: va
       <div class="checks"><label><input type="checkbox" id="hide-shared"> Hide areas that only borrow another area's label (their pull requests are mostly not their own)</label></div>
     </div>
     <details class="explain" id="explain" open>
-      <summary>What the choices and colours mean</summary>
+      <summary>What the terms, choices and colours mean</summary>
       <div class="defs">
+        <div>
+          <h4>Terms</h4>
+          <dl>
+            <div><dt>Listed</dt><dd>The Maintainers and Collaborators of the area in MAINTAINERS.yml. "The list" always means these people.</dd></div>
+            <div><dt>Regular reviewer</dt><dd>A listed person who answers at least half of five or more review requests in the period.</dd></div>
+            <div><dt>Occasional and silent</dt><dd>A listed person who took part but less than that, or not at all.</dd></div>
+            <div><dt>Candidate</dt><dd>Someone who is not listed for the area but reviewed a tenth or more of its pull requests, and at least five.</dd></div>
+          </dl>
+        </div>
         <div>
           <h4>Review cover: the state of an area</h4>
           <dl>
@@ -195,7 +208,7 @@ details.explain summary { cursor: pointer; font: 600 14px var(--font); color: va
             <div><dt>Most per regular reviewer</dt><dd>Pull requests arriving each week, divided by the regular reviewers. Areas with none come first.</dd></div>
             <div><dt>Slowest second approval</dt><dd>Median days from ready for review to the second approval.</dd></div>
             <div><dt>Most waiting</dt><dd>Open, ready pull requests with no review after two weeks.</dd></div>
-            <div><dt>Most candidates</dt><dd>People not on the list who review a tenth or more of the area's pull requests.</dd></div>
+            <div><dt>Most candidates</dt><dd>Areas with the most candidates, as defined under Terms.</dd></div>
           </dl>
         </div>
         <div>
@@ -214,6 +227,7 @@ details.explain summary { cursor: pointer; font: 600 14px var(--font); color: va
       <p class="note" id="strip-note"></p>
       <div class="strip chart" id="strip"></div>
     </div>
+    <p class="note">Point at a figure in the table, or tap it, for the names and counts behind it.</p>
     <div class="scroll"><table id="overview"></table></div>
     <p class="note">Columns. Listed: the people on the list, then how many of them are regular, occasional and silent reviewers; a question mark counts people with too few requests to tell. A regular reviewer answers at least half of five or more review requests in the period; an occasional one took part but less than that. Not covered: the share of pull requests with fewer than two regular reviewers besides their author. Regulars alone: the share of merged pull requests whose two approvals both came from regular reviewers. No listed reviewer: pull requests on which nobody listed took part. Counted with a comment as an answer and with the excuse rule on; open an area for the other ways of counting.</p>
   </div>
@@ -247,6 +261,7 @@ details.explain summary { cursor: pointer; font: 600 14px var(--font); color: va
       </div>
       <input type="range" id="line" min="0" max="100" step="1" value="10">
     </div>
+    <p class="note">Listed below are the area's Maintainers and Collaborators in MAINTAINERS.yml; "the list" means these people everywhere on this page.</p>
     <p class="verdict" id="verdict"></p>
     <div id="roster"></div>
     <p class="note" id="area-note"></p>
@@ -265,8 +280,9 @@ details.explain summary { cursor: pointer; font: 600 14px var(--font); color: va
     <p class="note" id="outcome-note"></p>
   </div>
   <div class="panel">
-    <h3>Reviewers who are not on the list</h3>
-    <p class="note">An approval by any member of the organization counts towards a merge, so these people already carry part of the area's review. Those who reviewed a tenth of the area's pull requests or more are marked as regular here: they are the candidates for the list. The last column can only tell public members of the organization apart: someone whose membership is private shows as "membership not visible", the same as someone who is not a member.</p>
+    <h3>Reviewers who are not listed for this area</h3>
+    <p class="verdict" id="candidate-text"></p>
+    <p class="note">An approval by any member of the organization counts towards a merge, so these people already carry part of the area's review. A candidate reviewed a tenth of the area's pull requests or more in the period, and at least five. The last column can only tell public members of the organization apart: someone whose membership is private shows as "membership not visible", the same as someone who is not a member.</p>
     <div class="scroll"><table id="candidates"></table></div>
   </div>
 </section>
@@ -524,22 +540,27 @@ function render() {
 
   /* reviewers who are not listed */
   const STANDING = { 2: "public member of the organization", 1: "outside collaborator", 0: "membership not visible", "-1": "not known yet" };
-  const outside = [...stat.entries()].filter(([i, s]) => !AREA.roster.has(L[i]) && (s.approved >= 3 || s.reviewed >= 5)).sort((a, b) => b[1].approved - a[1].approved || b[1].reviewed - a[1].reviewed).slice(0, 8);
+  const outside = [...stat.entries()].filter(([i, s]) => !AREA.roster.has(L[i]) && (s.approved >= 3 || s.reviewed >= 5)).sort((a, b) => b[1].reviewed - a[1].reviewed || b[1].approved - a[1].approved).slice(0, 8);
+  const isCandidate = (st) => st.reviewed >= Math.max(5, readyPrs.length / 10);
+  const cand = [...stat.entries()].filter(([i, st]) => !AREA.roster.has(L[i]) && isCandidate(st)).sort((a, b) => b[1].reviewed - a[1].reviewed);
+  const ctext = $("candidate-text"); ctext.textContent = "";
+  if (cand.length) { ctext.appendChild(document.createTextNode(cand.length === 1 ? "One candidate for the list: " : cand.length + " candidates for the list: ")); ctext.appendChild(el("span", "names", cand.map(([i]) => L[i]).join(", "))); ctext.appendChild(document.createTextNode(".")); }
+  else ctext.textContent = "No candidates in this period: nobody outside the list reviewed a tenth of the area's pull requests.";
   const ctab = $("candidates"); ctab.textContent = "";
   if (outside.length) {
     const h = el("thead"), r0 = el("tr");
-    [["Reviewer", ""], ["Reviewed", "n"], ["Approved", "n"], ["Share of the area's pull requests", "n"], ["Last review", "n"], ["Regular here", ""], ["Organization", ""]].forEach(([t, c]) => r0.appendChild(el("th", c, t)));
+    [["Reviewer", ""], ["Reviewed", "n"], ["Approved", "n"], ["Share of the area's pull requests", "n"], ["Last review", "n"], ["Candidate", ""], ["Organization", ""]].forEach(([t, c]) => r0.appendChild(el("th", c, t)));
     h.appendChild(r0); ctab.appendChild(h);
     const body = el("tbody");
     for (const [i, st] of outside) {
       const tr = el("tr"), who = el("td", "login"); who.appendChild(profile(L[i])); tr.appendChild(who);
       [st.reviewed, st.approved, readyPrs.length ? pc(st.reviewed / readyPrs.length) : "n/a", st.last ? iso(st.last) : ""].forEach((x) => tr.appendChild(el("td", "n", String(x))));
-      tr.appendChild(el("td", null, st.reviewed >= Math.max(5, readyPrs.length / 10) ? "yes" : ""));
+      tr.appendChild(el("td", null, isCandidate(st) ? "yes" : ""));
       tr.appendChild(el("td", null, STANDING[(AREA.standing || [])[i] ?? -1]));
       body.appendChild(tr);
     }
     ctab.appendChild(body);
-  } else { const tr = el("tr"); tr.appendChild(el("td", null, "Nobody outside the list reviewed five or approved three pull requests here in this period.")); ctab.appendChild(tr); }
+  } else { const tr = el("tr"); tr.appendChild(el("td", null, "Nobody who is not listed reviewed five or approved three pull requests here in this period.")); ctab.appendChild(tr); }
 
   /* flow */
   const opened = P.filter((p) => p[2] >= F && p[2] < T), merged = P.filter((p) => p[4] >= F && p[4] < T);
@@ -614,7 +635,7 @@ function areaRows() {
       notCovered: covered >= 5 ? (w.cover[0] + w.cover[1]) / covered : null,
       regAlone: merged >= 5 ? w.outcome[0] / merged : null,
       noListed: w.asked_prs >= 5 ? w.silent_prs / w.asked_prs : null,
-      second: w.second_approval, waiting: a.waiting, candidates: w.candidate_count, candidateNames: w.candidates,
+      second: w.second_approval, waiting: a.waiting, candidates: w.candidate_count, w, days,
     };
   });
 }
@@ -681,13 +702,60 @@ function renderAll() {
       const x = r[c.key], mark = markOf(c.key, x);
       const cell = el("td", c.key === "rank" ? "status" : "n" + mark, c.key === "rank" || x == null ? (x == null ? "n/a" : "") : String(c.fmt(x, r)));
       if (c.key === "rank") cell.appendChild(el("span", "state " + r.status, STATUS[r.status]));
-      if (mark) cell.title = mark === " worst" ? "Among the worst tenth of the areas in scope" : "Among the best tenth of the areas in scope";
-      if (c.key === "candidates" && r.candidateNames.length) cell.title = r.candidateNames.join(", ");
+      if (mark) cell.dataset.mark = mark.trim();
+      attachDetail(cell, c.key, r);
       tr.appendChild(cell);
     }
     tb.appendChild(tr);
   }
   table.appendChild(tb);
+}
+
+/* the names and counts behind a figure, on hover, focus or tap */
+function detailLines(key, r) {
+  const w = r.w, list = (a) => a.length ? a.join(", ") : "nobody";
+  const covered = w.cover[0] + w.cover[1] + w.cover[2], merged = w.outcome.reduce((x, y) => x + y, 0);
+  switch (key) {
+    case "rank": {
+      const lines = [["", { none: "Nobody listed is a regular reviewer.", single: "One listed person is a regular reviewer: " + list(w.people[0]) + ".", thin: "Regular reviewers: " + list(w.people[0]) + ". They also write much of the code.", covered: "Regular reviewers: " + list(w.people[0]) + "." }[r.status]]];
+      if (covered) lines.push(["", (w.cover[0] + w.cover[1]) + " of " + covered + " pull requests have fewer than two regular reviewers besides their author."]);
+      if (w.top_author && covered) lines.push(["Main author", w.top_author + ", " + pc(w.top_author_prs / covered) + " of the pull requests"]);
+      return lines;
+    }
+    case "regular": return [["Regular", list(w.people[0])], ["Occasional", list(w.people[1])], ["Silent", list(w.people[2])]].concat(w.people[3].length ? [["Too few requests to tell", list(w.people[3])]] : []);
+    case "perWeek": return [["", w.ready + " pull requests became ready for review in " + r.days + " days."]];
+    case "perRegular": return [["", f1(r.perWeek) + " pull requests a week, " + (w.tiers[0] ? "divided by " + w.tiers[0] + " regular reviewer" + (w.tiers[0] > 1 ? "s" : "") + ": " + list(w.people[0]) : "and no regular reviewer") + "."]];
+    case "notCovered": return [["", "Of " + covered + " pull requests, by regular reviewers besides the author:"], ["Two or more", String(w.cover[2])], ["One", String(w.cover[1])], ["None", String(w.cover[0])]];
+    case "regAlone": return [["", "The two approvals of the " + merged + " merged pull requests came from:"], ["Regular reviewers alone", String(w.outcome[0])], ["With an occasional listed reviewer", String(w.outcome[1])], ["With someone not listed", String(w.outcome[2])]].concat(w.outcome[3] ? [["Fewer than two on record", String(w.outcome[3])]] : []);
+    case "noListed": return [["", w.silent_prs + " of the " + w.asked_prs + " pull requests that asked the list got no review or comment from anyone listed."]];
+    case "second": return [["", w.second_approval == null ? "No pull request got a second approval." : "Median of " + w.second_n + " pull requests, from ready for review to the second approval." + (w.first_review != null ? " The first review took " + f1(w.first_review) + " days." : "")]];
+    case "waiting": return [["", r.waiting + " open pull requests are ready for review and have had no review for two weeks or more. This figure is as of now, not for the period."]];
+    case "candidates": return w.candidates.length ? [["", "Not listed, but reviewed a tenth or more of the area's pull requests:"]].concat(w.candidates.map(([who, n]) => [who, n + " reviewed"])) : [["", "Nobody who is not listed reviewed a tenth of the area's pull requests."]];
+  }
+  return [];
+}
+function attachDetail(cell, key, r) {
+  const tip = $("tip");
+  const show = () => {
+    const lines = detailLines(key, r);
+    if (cell.dataset.mark) lines.push(["", cell.dataset.mark === "worst" ? "Among the worst tenth of the areas in scope." : "Among the best tenth of the areas in scope."]);
+    if (!lines.length) return;
+    tip.textContent = ""; tip.className = "tip wide";
+    tip.appendChild(el("div", null)).appendChild(el("b", null, r.name));
+    for (const [label, text] of lines) { const d = el("div"); if (label) { d.appendChild(el("b", null, label + ": ")); } d.appendChild(document.createTextNode(text)); tip.appendChild(d); }
+    tip.hidden = false;
+    const box = cell.getBoundingClientRect(), width = tip.offsetWidth, height = tip.offsetHeight, view = document.documentElement.clientWidth;
+    let left = box.left + window.scrollX + box.width / 2 - width / 2;
+    left = Math.max(window.scrollX + 8, Math.min(left, window.scrollX + view - width - 8));
+    let top = box.bottom + window.scrollY + 6;
+    if (box.bottom + height + 12 > window.innerHeight && box.top - height - 6 > 0) top = box.top + window.scrollY - height - 6;
+    tip.style.left = left + "px"; tip.style.top = top + "px";
+  };
+  const hide = () => { tip.hidden = true; tip.className = "tip"; };
+  cell.tabIndex = 0;
+  cell.addEventListener("pointerenter", show); cell.addEventListener("pointerleave", hide);
+  cell.addEventListener("focus", show); cell.addEventListener("blur", hide);
+  cell.addEventListener("click", (ev) => { if (tip.hidden) show(); else hide(); ev.stopPropagation(); });
 }
 
 /* where every shown area sits on the measure the table is sorted by */

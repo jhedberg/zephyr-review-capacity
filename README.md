@@ -11,7 +11,8 @@ project policy.
 
 ## What the page shows
 
-The page sorts the listed people of an area into four groups for a period:
+"Listed" and "the list" always mean the Maintainers and Collaborators of an
+area in `MAINTAINERS.yml`. The page sorts them into four groups for a period:
 
 - a **regular reviewer** answers at least half of five or more review requests;
 - an **occasional reviewer** took part, but less than that;
@@ -40,7 +41,9 @@ covered). In the three columns with a real spread (pull requests per regular
 reviewer, time to the second approval, pull requests waiting) a mark shows the
 worst and the best tenth of the areas in scope; the percentage columns are not
 coloured, because most areas sit at 0% or 100% there. A strip shows where
-every area sits on the column the table is sorted by. This view offers four fixed periods and one way of counting; its
+every area sits on the column the table is sorted by. Pointing at a figure in
+the table, or tapping it, shows the names and counts behind it: who the regular
+and occasional reviewers are, who the candidates are, how the approvals split. This view offers four fixed periods and one way of counting; its
 figures come from `data/summary.json`.
 
 **One area** is for the area's own maintainers. For each Maintainer and

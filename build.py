@@ -242,12 +242,12 @@ def summarize(data: dict, now: int) -> dict:
         for who, _row, first, _approved, _last in data["revs"]:
             if first >= start:
                 reviewed_by[who] = reviewed_by.get(who, 0) + 1
-        tiers = {"regular": 0, "occasional": 0, "silent": 0, "unrated": 0}
+        tiers = {"regular": [], "occasional": [], "silent": [], "unrated": []}
         regular = set()
         for who in roster:
             n, hits = per_person.get(who, (0, 0))
             kind = tier(n, hits, reviewed_by.get(who, 0))
-            tiers[kind] += 1
+            tiers[kind].append(logins[who])
             if kind == "regular":
                 regular.add(who)
 
@@ -283,7 +283,9 @@ def summarize(data: dict, now: int) -> dict:
                              if w not in listed and n >= bar), reverse=True)
         out["w"][str(days)] = {
             "ready": len(ready),
-            "tiers": [tiers["regular"], tiers["occasional"], tiers["silent"], tiers["unrated"]],
+            "tiers": [len(tiers["regular"]), len(tiers["occasional"]), len(tiers["silent"]),
+                      len(tiers["unrated"])],
+            "people": [tiers["regular"], tiers["occasional"], tiers["silent"], tiers["unrated"]],
             "status": status_of(len(regular), cover),
             "cover": cover, "outcome": outcome,
             "top_author": logins[top_author] if top_author >= 0 else None,
@@ -291,7 +293,8 @@ def summarize(data: dict, now: int) -> dict:
             "asked_prs": len(per_pr), "silent_prs": sum(1 for n in per_pr.values() if not n),
             "first_review": None if not first_review else round(median(first_review), 2),
             "second_approval": None if not second else round(median(second), 2),
-            "candidates": [w for _n, w in candidates[:5]], "candidate_count": len(candidates),
+            "second_n": len(second),
+            "candidates": [[w, n] for n, w in candidates[:8]], "candidate_count": len(candidates),
         }
     return out
 
