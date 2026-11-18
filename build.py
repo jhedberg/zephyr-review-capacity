@@ -203,7 +203,7 @@ def build_area(name: str, area: dict, prs: list[PR], maintains: dict, now: int,
 
 # Version of the data files' layout. The page carries the same number and
 # refuses to mix a page of one version with data of another.
-FORMAT = 6
+FORMAT = 7
 WINDOWS = (30, 90, 180, 365)
 WAITING = 14 * DAY
 REGULAR = 0.5      # a regular reviewer answers at least this share of requests
@@ -327,16 +327,26 @@ def summarize(data: dict, now: int) -> dict:
                 outcome[2] += 1
             else:
                 outcome[3] += 1
-        # The Maintainer's standing: reviews against the most active other
-        # person, and how much of the area's code the Maintainer writes.
-        m_reviews = [[logins[m], reviewed_by.get(m, 0)] for m in maintainers]
-        top_m = max((n for _w, n in m_reviews), default=0)
-        other = max(((n, w) for w, n in reviewed_by.items() if w not in maintainers),
-                    default=(0, -1))
+        # The Maintainer's standing: the share reviewed of the pull requests
+        # written by others, against the most active other person. Nobody
+        # can review their own, so a Maintainer who writes much of the area's
+        # code is not measured against pull requests they cannot review.
+        def others_prs(who: int) -> int:
+            return len(ready) - authors.get(who, 0)
+
+        def share(who: int) -> float:
+            return min(1.0, reviewed_by.get(who, 0) / others_prs(who)) if others_prs(who) > 0 else 0.0
+
+        m_reviews = [[logins[m], reviewed_by.get(m, 0), others_prs(m)] for m in maintainers]
+        top_m = max((share(m) for m in maintainers), default=0)
+        rest = [w for w in reviewed_by if w not in maintainers]
+        rest = [w for w in rest if reviewed_by[w] >= MIN_CANDIDATE] or rest
+        top_other = max(rest, key=lambda w: (share(w), reviewed_by[w]), default=-1)
+        other = (reviewed_by.get(top_other, 0), top_other)
         m_wrote = sum(authors.get(m, 0) for m in maintainers) / len(ready) if ready else 0
         if not maintainers:
             standing = "none"
-        elif top_m >= other[0]:
+        elif top_other < 0 or top_m >= share(top_other):
             standing = "leads"
         elif any(m in regular for m in maintainers):
             standing = "second"
@@ -380,7 +390,7 @@ def summarize(data: dict, now: int) -> dict:
             "maintainer": {"state": standing, "reviews": m_reviews,
                            "wrote": round(m_wrote, 3),
                            "other": None if other[1] < 0 else
-                           [logins[other[1]], other[0], other[1] in listed]},
+                           [logins[other[1]], other[0], other[1] in listed, others_prs(other[1])]},
             "assignee_days": None if not to_assignee else round(median(to_assignee), 2),
             "assignee_n": len(to_assignee),
             "assignee_merged": len(assigned),

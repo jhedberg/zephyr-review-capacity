@@ -273,9 +273,9 @@ details.explain summary { cursor: pointer; font: 600 14px var(--font); color: va
           </dl>
           <h4 style="margin-top:16px">Maintainer: reviews, compared with others</h4>
           <dl>
-            <div><dt><span class="state leads">Reviews most</span></dt><dd>A Maintainer reviewed at least as many of the area's pull requests as anyone else.</dd></div>
-            <div><dt><span class="state second">Second</span> or <span class="state author">Writes most</span></dt><dd>Someone else reviewed more, and the Maintainer is a regular reviewer or writes half or more of the area's pull requests, which nobody can review for themselves.</dd></div>
-            <div><dt><span class="state behind">Behind</span></dt><dd>Someone else reviewed more and the Maintainer is not a regular reviewer. Only reviews are counted: triage, design and release work do not show here.</dd></div>
+            <div><dt><span class="state leads">Reviews most</span></dt><dd>Nobody reviewed a larger share than a Maintainer. Each person is measured on the pull requests written by others, since nobody can review their own.</dd></div>
+            <div><dt><span class="state second">Second</span> or <span class="state author">Writes most</span></dt><dd>Someone else reviewed a larger share, and the Maintainer is a regular reviewer or writes half or more of the area's pull requests.</dd></div>
+            <div><dt><span class="state behind">Behind</span></dt><dd>Someone else reviewed a larger share and the Maintainer is not a regular reviewer. Only reviews are counted: triage, design and release work do not show here.</dd></div>
             <div><dt><span class="state none">No Maintainer</span></dt><dd>The area lists none.</dd></div>
           </dl>
         </div>
@@ -432,7 +432,7 @@ const median = (v) => { if (!v.length) return null; v = v.slice().sort((a, b) =>
 const profile = (login) => { const a = el("a", null, login); a.href = "https://github.com/" + login; a.target = "_blank"; a.rel = "noopener"; return a; };
 const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
-const FORMAT = 6;  /* must match FORMAT in build.py */
+const FORMAT = 7;  /* must match FORMAT in build.py */
 let INDEX = null, AREA = null, SUMMARY = null, VERSION = "";
 const params = new URLSearchParams(location.search);
 const state = {
@@ -657,15 +657,20 @@ function render() {
   const maintIdx = new Set(maint.map((p) => L.indexOf(p.w)));
   if (!maint.length) { $("maint-title").textContent = "The Maintainer: none listed"; ms("This area lists no Maintainer."); }
   else {
-    const wrote = readyPrs.filter((p) => maintIdx.has(p[1])).length, topM = Math.max(...maint.map((p) => p.s.reviewed));
-    const other = [...stat.entries()].filter(([i, st]) => !maintIdx.has(i) && st.reviewed > 0).sort((a, b) => b[1].reviewed - a[1].reviewed)[0];
+    /* compared on the pull requests written by others: nobody can review their own */
+    const othersPrs = (i) => readyPrs.length - (byAuthor.get(i) || 0);
+    const part = (i, n) => othersPrs(i) > 0 ? Math.min(1, n / othersPrs(i)) : 0;
+    const wrote = readyPrs.filter((p) => maintIdx.has(p[1])).length, topM = Math.max(...maint.map((p) => part(L.indexOf(p.w), p.s.reviewed)));
+    let rest = [...stat.entries()].filter(([i, st]) => !maintIdx.has(i) && st.reviewed > 0);
+    if (rest.some(([, st]) => st.reviewed >= 5)) rest = rest.filter(([, st]) => st.reviewed >= 5);
+    const other = rest.sort((a, b) => part(b[0], b[1].reviewed) - part(a[0], a[1].reviewed) || b[1].reviewed - a[1].reviewed)[0];
     const share = readyPrs.length ? wrote / readyPrs.length : 0;
-    const mstate = !other || topM >= other[1].reviewed ? "leads" : maint.some((p) => p.tier === "regular") ? "second" : share >= 0.5 ? "author" : "behind";
-    $("maint-title").textContent = "The Maintainer: " + { leads: "reviews the most", second: "second in reviews", author: "writes most of the code", behind: "behind in reviews" }[mstate];
-    maint.forEach((p, k) => { if (k) ms("; "); mn(p.w); ms(" reviewed " + p.s.reviewed + " of the area's pull requests"); });
+    const mstate = !other || topM >= part(other[0], other[1].reviewed) ? "leads" : maint.some((p) => p.tier === "regular") ? "second" : share >= 0.5 ? "author" : "behind";
+    $("maint-title").textContent = "The Maintainer: " + { leads: "reviews the largest share", second: "second in reviews", author: "writes most of the code", behind: "behind in reviews" }[mstate];
+    maint.forEach((p, k) => { const i = L.indexOf(p.w); if (k) ms("; "); mn(p.w); ms(" reviewed " + p.s.reviewed + " of the " + othersPrs(i) + " pull requests written by others (" + pc(part(i, p.s.reviewed)) + ")"); });
     ms(". ");
-    if (readyPrs.length) ms((maint.length > 1 ? "Together they wrote " : "They wrote ") + pc(share) + " of the area's pull requests, which someone else has to review. ");
-    if (other) { ms("The most active other reviewer is "); mn(L[other[0]]); ms(", " + (AREA.roster.has(L[other[0]]) ? "a Collaborator" : "not listed") + ", with " + other[1].reviewed + "."); }
+    if (readyPrs.length) ms((maint.length > 1 ? "Together they wrote " : "They wrote ") + pc(share) + " of the area's pull requests, which they cannot review themselves. ");
+    if (other) { ms("The most active other reviewer is "); mn(L[other[0]]); ms(", " + (AREA.roster.has(L[other[0]]) ? "a Collaborator" : "not listed") + ", with " + other[1].reviewed + " of " + othersPrs(other[0]) + " (" + pc(part(other[0], other[1].reviewed)) + ")."); }
   }
   const at = $("assignee-text"); at.textContent = "";
   const known = P.filter((p) => p[9] !== -2).length;
@@ -923,9 +928,10 @@ function detailLines(key, r) {
     case "mrank": {
       const m = w.maintainer, lines = [];
       if (!m.reviews.length) lines.push(["", "The area lists no Maintainer."]);
-      for (const [who, n] of m.reviews) lines.push([who, "reviewed " + n + " of the area's pull requests"]);
-      if (m.reviews.length) lines.push(["", "The Maintainer" + (m.reviews.length > 1 ? "s" : "") + " wrote " + pc(m.wrote) + " of the area's pull requests, which someone else has to review."]);
-      if (m.other) lines.push(["Most active other reviewer", m.other[0] + ", " + m.other[1] + " reviewed (" + (m.other[2] ? "listed" : "not listed") + ")"]);
+      const part = (n, of) => of > 0 ? pc(Math.min(1, n / of)) : "none to review";
+      for (const [who, n, of] of m.reviews) lines.push([who, "reviewed " + n + " of the " + of + " pull requests written by others (" + part(n, of) + ")"]);
+      if (m.reviews.length) lines.push(["", "The Maintainer" + (m.reviews.length > 1 ? "s" : "") + " wrote " + pc(m.wrote) + " of the area's pull requests, which they cannot review themselves."]);
+      if (m.other) lines.push(["Most active other reviewer", m.other[0] + ", " + m.other[1] + " of " + m.other[3] + " (" + part(m.other[1], m.other[3]) + "), " + (m.other[2] ? "listed" : "not listed")]);
       lines.push(["", "Only reviews are counted here. Triage, design and release work do not show."]);
       return lines;
     }
