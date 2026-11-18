@@ -105,7 +105,10 @@ The address bar holds the current view and can be shared.
   area's Maintainers is its assignee: a listed person is expected to review
   the area's own pull requests. Elsewhere, where the area is touched in
   passing, declining counts neither for nor against the person. The view of
-  one area can switch this off.
+  one area can switch this off. Many declines on an area's own pull requests
+  can also mean that the area is drawn too wide for the person (part of it is
+  a technology their work does not touch); the remedy then is a finer split
+  of the area in MAINTAINERS.yml.
 - Areas marked `meta: true` in MAINTAINERS.yml (Documentation, Tests, Samples,
   Release, Benchmarks) get their label and their people asked on any pull
   request that touches their files, while the assigner treats the pull request
