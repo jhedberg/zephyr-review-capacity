@@ -241,6 +241,7 @@ details.explain summary { cursor: pointer; font: 600 14px var(--font); color: va
     <div class="controls">
       <div class="field"><span>Period</span><div class="seg" id="all-presets" role="group" aria-label="Period"></div></div>
       <div class="field"><label for="min-prs">At least this many pull requests</label><select id="min-prs"></select></div>
+      <div class="field"><label for="wide-all">Pull requests counted</label><select id="wide-all"></select></div>
       <div class="field"><label for="all-filter">Area name contains</label><input type="search" id="all-filter" placeholder="for example: drivers"></div>
     </div>
     <div class="controls">
@@ -339,6 +340,7 @@ details.explain summary { cursor: pointer; font: 600 14px var(--font); color: va
         <label><input type="checkbox" id="opt-own"> Leave out pull requests that also carry an area the person maintains</label>
       </div>
       <div class="field"><label for="skip-author">Leave out pull requests by</label><select id="skip-author"></select></div>
+      <div class="field"><label for="wide-area">Pull requests counted</label><select id="wide-area"></select></div>
     </div>
     <div>
       <div class="line-head">
@@ -414,6 +416,7 @@ details.explain summary { cursor: pointer; font: 600 14px var(--font); color: va
     <li>Approved counts the pull requests the person first approved in the period, asked or not. Bot accounts are left out everywhere.</li>
     <li>A regular reviewer is a listed person who answers at least half of five or more requests in the period. An occasional reviewer took part but is not regular; a silent one did not take part; with fewer than five requests there is too little to tell. A pull request is not covered when fewer than two regular reviewers are left besides its author. An area whose label is named after another area (a West project using "area: Tests", say) sees that area's pull requests, so its figures are not its own. The same holds for the areas MAINTAINERS.yml marks as meta (Documentation, Tests, Samples, Release, Benchmarks): the assigner applies their label and asks their people on any pull request that touches their files, and itself never counts them as short of reviewers. Both kinds are hidden under "All areas" unless asked for.</li>
     <li>The assignee is picked by the assigner as well: a Maintainer, other than the author, of the non-platform area with the most changed files, with platform areas as a fallback and meta areas only when nothing else is touched. People change or add assignees by hand afterwards; the page uses the assignees a pull request has now.</li>
+    <li>A pull request that touches many areas carries the labels of all of them and so counts in each, though it concerns few of the people it asks. "Pull requests counted" in both views can leave out those carrying more than six or more than four area labels. In the last 90 days one pull request in twenty carried seven or more, and leaving those out removed a fifth of a typical area's pull requests. The assigner applies at most ten labels, so the widest pull requests are undercounted.</li>
     <li>A period that includes a holiday season lowers everyone's rate. Compare like with like before drawing a conclusion about a person.</li>
     <li>The numbers come from public GitHub data and are refreshed by a script; see the <a id="repo-link" href="https://github.com/jhedberg/zephyr-review-capacity">source</a> for the exact rules.</li>
   </ul>
@@ -434,8 +437,10 @@ const median = (v) => { if (!v.length) return null; v = v.slice().sort((a, b) =>
 const profile = (login) => { const a = el("a", null, login); a.href = "https://github.com/" + login; a.target = "_blank"; a.rel = "noopener"; return a; };
 const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
-const FORMAT = 8;  /* must match FORMAT in build.py */
+const FORMAT = 9;  /* must match FORMAT in build.py */
 let INDEX = null, AREA = null, SUMMARY = null, VERSION = "";
+let FULL = null;            /* the area as loaded; AREA is FULL, or FULL without the widest pull requests */
+const SUMMARIES = {};       /* the figures of all areas, by the limit on area labels (0 is none) */
 const params = new URLSearchParams(location.search);
 const state = {
   view: params.get("view") || (params.has("area") ? "area" : "all"),
@@ -445,7 +450,7 @@ const state = {
   from: params.get("from"), to: params.get("to"), days: +(params.get("days") || 90),
   line: params.has("line") ? +params.get("line") : 10,
   comment: params.get("comment") !== "0", excuse: params.get("excuse") !== "0", declined: params.get("declined") !== "0",
-  own: params.get("own") === "1", skip: params.get("skip") || "",
+  own: params.get("own") === "1", skip: params.get("skip") || "", wide: +(params.get("labels") || 0),
 };
 
 function remember() {
@@ -466,6 +471,7 @@ function remember() {
   if (!state.excuse) p.set("excuse", "0");
   if (!state.declined) p.set("declined", "0");
   if (state.own) p.set("own", "1");
+  if (state.wide) p.set("labels", state.wide);
   if (state.skip) p.set("skip", state.skip);
   history.replaceState(null, "", "?" + p.toString());
 }
@@ -479,10 +485,27 @@ function range() {
 async function loadArea(name) {
   const entry = INDEX.areas.find((a) => a.name === name) || INDEX.areas[0];
   state.area = entry.name;
-  AREA = await (await fetch("data/" + entry.file + VERSION)).json();
-  AREA.roster = new Set(AREA.maintainers.concat(AREA.collaborators));
+  FULL = await (await fetch("data/" + entry.file + VERSION)).json();
+  FULL.roster = new Set(FULL.maintainers.concat(FULL.collaborators));
+  limitArea();
   if ($("area").value !== state.area) fillAreas($("filter").value);
   if (state.view === "area") render(); else remember();
+}
+
+/* Leave out the pull requests that carry more area labels than the chosen limit: they count in every
+   area they touch but concern few of the people asked. Rows are renumbered, so nothing else changes. */
+function limitArea() {
+  if (!FULL) return;
+  if (!state.wide) { AREA = FULL; return; }
+  const keep = new Map(), prs = [];
+  FULL.prs.forEach((p, row) => { if (p[13] <= state.wide) { keep.set(row, prs.length); prs.push(p); } });
+  const move = (list) => list.filter((x) => keep.has(x[1])).map((x) => { const y = x.slice(); y[1] = keep.get(x[1]); return y; });
+  AREA = Object.assign({}, FULL, { prs, asks: move(FULL.asks), revs: move(FULL.revs) });
+}
+async function useSummary() {
+  const key = state.wide || 0;
+  if (!SUMMARIES[key]) SUMMARIES[key] = await (await fetch("data/summary" + (key ? "-" + key : "") + ".json" + VERSION)).json();
+  SUMMARY = SUMMARIES[key];
 }
 
 function fillAreas(filter) {
@@ -1161,7 +1184,18 @@ async function start() {
     const c = $("coverage"); c.hidden = false;
     c.textContent = "This page and its data come from two different versions of the site, so some figures may be missing or wrong. That lasts a few minutes after an update: reload the page shortly.";
   }
-  SUMMARY = await (await fetch("data/summary.json" + VERSION)).json();
+  if (!(INDEX.label_limits || []).includes(state.wide)) state.wide = 0;
+  await useSummary();
+  for (const id of ["wide-all", "wide-area"]) {
+    const sel = $(id);
+    [[0, "All"]].concat((INDEX.label_limits || []).map((n) => [n, "With at most " + n + " area labels"])).forEach(([n, text]) => { const o = el("option", null, text); o.value = n; sel.appendChild(o); });
+    sel.value = state.wide;
+    sel.addEventListener("change", async () => {
+      state.wide = +sel.value; $("wide-all").value = $("wide-area").value = state.wide;
+      limitArea(); await useSummary();
+      if (state.view === "all") renderAll(); else if (AREA) render();
+    });
+  }
   $("stamp").textContent = INDEX.repo + " · data of " + (INDEX.generated || "").slice(0, 16).replace("T", " ") + " UTC · " + INDEX.pull_requests.toLocaleString("en-US") + " pull requests";
   $("repo-link").href = "https://github.com/" + (document.querySelector('meta[name="source"]')?.content || "jhedberg/zephyr-review-capacity");
   [30, 90, 180, 365].forEach((d) => { const b = el("button", null, "Last " + d + " days"); b.type = "button"; b.dataset.days = d; b.addEventListener("click", () => { state.days = d; render(); }); $("presets").appendChild(b); });

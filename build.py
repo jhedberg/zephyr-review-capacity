@@ -144,7 +144,9 @@ def build_area(name: str, area: dict, prs: list[PR], maintains: dict, now: int,
         rows.append([pr.n, idx(pr.author) if pr.author else -1, pr.created, pr.first_ready,
                      pr.merged, pr.closed, first_review,
                      approvals[1][0] if len(approvals) > 1 else 0, pr.draft_now,
-                     assignee, assignee_approval, len(approvals), own])
+                     assignee, assignee_approval, len(approvals), own,
+                     # how many areas' labels the pull request carries
+                     sum(1 for label in pr.labels if label in LABEL_USE)])
         end = pr.closed or now
         for who in roster:
             events = sorted(pr.requests.get(who, []))
@@ -203,7 +205,7 @@ def build_area(name: str, area: dict, prs: list[PR], maintains: dict, now: int,
 
 # Version of the data files' layout. The page carries the same number and
 # refuses to mix a page of one version with data of another.
-FORMAT = 8
+FORMAT = 9
 WINDOWS = (30, 90, 180, 365)
 WAITING = 14 * DAY
 REGULAR = 0.5      # a regular reviewer answers at least this share of requests
@@ -241,6 +243,26 @@ def status_of(regular: int, cover: list) -> str:
     if total and (cover[0] + cover[1]) / total >= THIN:
         return "thin"
     return "covered"
+
+
+# A pull request that touches many areas carries all their labels and counts
+# in each, though it concerns few of the people asked. The page can leave out
+# those with more area labels than one of these limits.
+LABEL_LIMITS = (6, 4)
+
+
+def narrow(data: dict, limit: int) -> dict:
+    """The area's data without the pull requests carrying more than *limit*
+    area labels."""
+    keep: dict[int, int] = {}
+    prs = []
+    for row, p in enumerate(data["prs"]):
+        if p[13] <= limit:
+            keep[row] = len(prs)
+            prs.append(p)
+    return {**data, "prs": prs,
+            "asks": [[a[0], keep[a[1]], *a[2:]] for a in data["asks"] if a[1] in keep],
+            "revs": [[r[0], keep[r[1]], *r[2:]] for r in data["revs"] if r[1] in keep]}
 
 
 def summarize(data: dict, now: int) -> dict:
@@ -448,6 +470,7 @@ def main() -> None:
         old.unlink()
     index = []
     summary = []
+    limited: dict[int, list] = {limit: [] for limit in LABEL_LIMITS}
     # An area that uses a label named after another area sees that area's
     # pull requests. The owner of a label is the area named like it.
     users: dict[str, list] = {}
@@ -482,12 +505,14 @@ def main() -> None:
         index.append({"name": name, "file": file, "status": area.get("status"),
                       "people": len(data["maintainers"]) + len(data["collaborators"]),
                       "prs": len(data["prs"])})
-        summary.append({"name": name, "status": area.get("status"),
-                        "meta": 1 if area.get("meta") else 0,
-                        "maintainers": len(data["maintainers"]),
-                        "collaborators": len(data["collaborators"]),
-                        "shares_label": 1 if borrows(name, label) else 0,
-                        **summarize(data, now)})
+        about = {"name": name, "status": area.get("status"),
+                 "meta": 1 if area.get("meta") else 0,
+                 "maintainers": len(data["maintainers"]),
+                 "collaborators": len(data["collaborators"]),
+                 "shares_label": 1 if borrows(name, label) else 0}
+        summary.append({**about, **summarize(data, now)})
+        for limit in LABEL_LIMITS:
+            limited[limit].append({**about, **summarize(narrow(data, limit), now)})
     # Two different things can be unfinished: the walk back to the start of
     # the history window, and, after a change of the record layout, the
     # refresh of records that already cover the whole window.
@@ -507,10 +532,12 @@ def main() -> None:
                                 / max(len(cache["prs"]), 1), 3),
         "assignee_known": round(sum(1 for r in cache["prs"].values() if "as" in r)
                                 / max(len(cache["prs"]), 1), 3),
+        "label_limits": list(LABEL_LIMITS),
         "areas": index}, separators=(",", ":")))
-    (args.out / "summary.json").write_text(json.dumps(
-        {"format": FORMAT, "now": now, "windows": list(WINDOWS), "areas": summary},
-        separators=(",", ":")))
+    for limit, areas_summary in [(0, summary)] + list(limited.items()):
+        (args.out / ("summary-%d.json" % limit if limit else "summary.json")).write_text(json.dumps(
+            {"format": FORMAT, "now": now, "windows": list(WINDOWS), "areas": areas_summary},
+            separators=(",", ":")))
     print(f"{len(index)} areas from {len(prs)} pull requests")
 
 

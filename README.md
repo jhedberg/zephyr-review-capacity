@@ -128,6 +128,13 @@ The address bar holds the current view and can be shared.
   withdrawn by someone else without an answer, pull requests closed with less than three ready
   days after the request, open ones with less than seven ready days since the
   request. Time as a draft is not ready time.
+- A pull request that touches many areas carries the labels of all of them
+  and counts in each, though it concerns few of the people it asks. Both views
+  can leave out pull requests carrying more than six or more than four area
+  labels (`LABEL_LIMITS` in `build.py`); the view of all areas has its figures
+  worked out once per limit, in `summary-6.json` and `summary-4.json`. The
+  assigner applies at most ten labels, so the widest pull requests are
+  undercounted.
 - Optional excuse: a miss is not counted when the pull request closed within
   seven days of the request or two other people approved it within seven days.
 - People with fewer than five countable requests are not judged, and the line
