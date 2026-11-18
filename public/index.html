@@ -97,7 +97,10 @@ input[type="range"] { width: 100%; accent-color: var(--accent); height: 28px; ma
 .tip.wide { white-space: normal; max-width: min(380px, calc(100vw - 24px)); font: 400 13px/1.45 var(--font); padding: 10px 12px; }
 .tip.wide b { font-weight: 600; }
 .tip.wide div + div { margin-top: 4px; }
-#overview tbody td.n, #overview tbody td.status { cursor: help; }
+#overview tbody td.n, #overview tbody td.status, .row:not(.head), #candidates tbody tr, #balance tbody tr { cursor: help; }
+.state.second::before, .state.author::before { border-color: var(--below); background: var(--below); }
+.state.leads::before { border-color: var(--good); background: var(--good); }
+.state.behind::before { border-color: var(--bad); background: transparent; }
 .scroll { overflow-x: auto; }
 table { border-collapse: collapse; width: 100%; font-size: 14px; }
 th, td { text-align: left; padding: 8px 12px 8px 0; border-top: 1px solid var(--rule); }
@@ -107,7 +110,7 @@ td.login { font-family: var(--mono); }
 ul.plain { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; max-width: 72ch; font-size: 14px; color: var(--ink-2); }
 #view-all, #view-area { display: flex; flex-direction: column; gap: 40px; }
 #overview { font-size: 12.5px; }
-#overview th, #overview td { padding-right: 8px; }
+#overview th, #overview td { padding-right: 6px; }
 .cover { display: flex; height: 28px; gap: 2px; }
 .cover span { min-width: 2px; border-radius: 3px; }
 .cover .c2 { background: var(--accent); }
@@ -120,7 +123,7 @@ ul.plain { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
 .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
 #overview th button { font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: inherit; }
 #overview th[aria-sort] button { color: var(--ink); }
-#overview td.area { min-width: 150px; }
+#overview td.area { min-width: 130px; }
 #overview td.area button { font: 500 14px var(--font); color: var(--accent-ink); background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
 #overview td.area button:hover { text-decoration: underline; }
 #overview td.status { white-space: nowrap; color: var(--ink); }
@@ -188,6 +191,7 @@ details.explain summary { cursor: pointer; font: 600 14px var(--font); color: va
             <div><dt>Listed</dt><dd>The Maintainers and Collaborators of the area in MAINTAINERS.yml. "The list" always means these people.</dd></div>
             <div><dt>Regular reviewer</dt><dd>A listed person who answers at least half of five or more review requests in the period.</dd></div>
             <div><dt>Occasional and silent</dt><dd>A listed person who took part but less than that, or not at all.</dd></div>
+            <div><dt>Assignee</dt><dd>The person whose approval a merge needs, usually a Maintainer. Assignees are added and changed by hand, so the page takes whoever is assigned now, and counts an area's wait only where one of its own Maintainers is assigned.</dd></div>
             <div><dt>Candidate</dt><dd>Someone who is not listed for the area but reviewed more of its pull requests than at least half of the listed people did. Fewer than five reviews never count.</dd></div>
           </dl>
         </div>
@@ -199,6 +203,13 @@ details.explain summary { cursor: pointer; font: 600 14px var(--font); color: va
             <div><dt><span class="state thin">Thin</span></dt><dd>Two or more do, but they also write much of the code: a fifth or more of the pull requests have fewer than two of them besides the author.</dd></div>
             <div><dt><span class="state covered">Covered</span></dt><dd>Nearly every pull request has two regular reviewers besides its author.</dd></div>
           </dl>
+          <h4 style="margin-top:16px">Maintainer: reviews, compared with others</h4>
+          <dl>
+            <div><dt><span class="state leads">Reviews the most</span></dt><dd>A Maintainer reviewed at least as many of the area's pull requests as anyone else.</dd></div>
+            <div><dt><span class="state second">Second</span> or <span class="state author">Writes most</span></dt><dd>Someone else reviewed more, and the Maintainer is a regular reviewer or writes half or more of the area's pull requests, which nobody can review for themselves.</dd></div>
+            <div><dt><span class="state behind">Behind</span></dt><dd>Someone else reviewed more and the Maintainer is not a regular reviewer. Only reviews are counted: triage, design and release work do not show here.</dd></div>
+            <div><dt><span class="state none">No Maintainer</span></dt><dd>The area lists none.</dd></div>
+          </dl>
         </div>
         <div>
           <h4>Show first: the order of the table</h4>
@@ -206,6 +217,8 @@ details.explain summary { cursor: pointer; font: 600 14px var(--font); color: va
             <div><dt>By cover state</dt><dd>Groups the areas by the four states on the left, the weakest state first, and the busiest area first within a state.</dd></div>
             <div><dt>Largest share not covered</dt><dd>Orders by a number: the percentage of pull requests with fewer than two regular reviewers besides the author. Two areas in the same state can be far apart here, such as 45% and 100%.</dd></div>
             <div><dt>Most per regular reviewer</dt><dd>Pull requests arriving each week, divided by the regular reviewers. Areas with none come first.</dd></div>
+            <div><dt>Maintainer behind</dt><dd>Orders by the Maintainer state on the left, areas without a Maintainer first.</dd></div>
+            <div><dt>Most waiting on the assignee</dt><dd>Open pull requests that have two approvals but none from their assignee, where one of the area's Maintainers is assigned.</dd></div>
             <div><dt>Fastest growing queue</dt><dd>The change in the number of open pull requests over the period: opened, minus merged, minus closed without merging.</dd></div>
             <div><dt>Slowest second approval</dt><dd>Median days from ready for review to the second approval.</dd></div>
             <div><dt>Most waiting</dt><dd>Open, ready pull requests with no review after two weeks.</dd></div>
@@ -215,8 +228,8 @@ details.explain summary { cursor: pointer; font: 600 14px var(--font); color: va
         <div>
           <h4>Colours</h4>
           <dl>
-            <div><dt>On the cover state</dt><dd>Red means no or one regular reviewer, green means covered, grey means thin. These are fixed meanings.</dd></div>
-            <div><dt><span class="mark-worst">Worst tenth</span> and <span class="mark-best">best tenth</span></dt><dd>In "PRs/week per regular", "Open now (change)", "2nd approval" and "Waiting", the marks compare an area with the other areas in scope. A mark is left out when too many areas share the value for a tenth to mean anything.</dd></div>
+            <div><dt>On the two states</dt><dd>Review cover: red means no or one regular reviewer, green covered, grey thin. Maintainer: red means none or behind, green reviews the most, grey in between. These are fixed meanings.</dd></div>
+            <div><dt><span class="mark-worst">Worst tenth</span> and <span class="mark-best">best tenth</span></dt><dd>In "PRs/week per regular", "Open now (change)", "2nd approval" and the two "Waiting" columns, the marks compare an area with the other areas in scope. A mark is left out when too many areas share the value for a tenth to mean anything.</dd></div>
             <div><dt>No colour elsewhere</dt><dd>In the percentage columns most areas sit at 0% or 100%, so a best or worst tenth would be arbitrary there.</dd></div>
           </dl>
         </div>
@@ -230,7 +243,7 @@ details.explain summary { cursor: pointer; font: 600 14px var(--font); color: va
     </div>
     <p class="note">Point at a figure in the table, or tap it, for the names and counts behind it.</p>
     <div class="scroll"><table id="overview"></table></div>
-    <p class="note">Columns. Listed: the people on the list, then how many of them are regular, occasional and silent reviewers; a question mark counts people with too few requests to tell. A regular reviewer answers at least half of five or more review requests in the period; an occasional one took part but less than that. Not covered: the share of pull requests with fewer than two regular reviewers besides their author. Regulars alone: the share of merged pull requests whose two approvals both came from regular reviewers. No listed reviewer: pull requests on which nobody listed took part. Counted with a comment as an answer and with the excuse rule on; open an area for the other ways of counting.</p>
+    <p class="note">Columns. Listed: the people on the list, then how many of them are regular, occasional and silent reviewers; a question mark counts people with too few requests to tell. Maintainer: how the Maintainer's reviewing compares with everyone else's. Not covered: the share of pull requests with fewer than two regular reviewers besides their author. Waiting on assignee: open pull requests with two approvals but none from their assignee. Counted with a comment as an answer and with the excuse rule on; open an area for the other ways of counting.</p>
   </div>
 </section>
 </div>
@@ -266,6 +279,12 @@ details.explain summary { cursor: pointer; font: 600 14px var(--font); color: va
     <p class="verdict" id="verdict"></p>
     <div id="roster"></div>
     <p class="note" id="area-note"></p>
+  </div>
+  <div class="panel">
+    <h3 id="maint-title">The Maintainer</h3>
+    <p class="verdict" id="maint-text"></p>
+    <p class="verdict" id="assignee-text"></p>
+    <p class="note">Only reviews are counted here; triage, design and release work do not show. A merge needs an approval from an assignee, who is usually a Maintainer. Assignees are added and changed by hand, so this takes whoever is assigned now, and counts only pull requests on which one of this area's Maintainers is assigned.</p>
   </div>
   <div class="panel">
     <h3 id="cover-title">Review cover</h3>
@@ -339,7 +358,7 @@ const median = (v) => { if (!v.length) return null; v = v.slice().sort((a, b) =>
 const profile = (login) => { const a = el("a", null, login); a.href = "https://github.com/" + login; a.target = "_blank"; a.rel = "noopener"; return a; };
 const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
-const FORMAT = 3;  /* must match FORMAT in build.py */
+const FORMAT = 4;  /* must match FORMAT in build.py */
 let INDEX = null, AREA = null, SUMMARY = null, VERSION = "";
 const params = new URLSearchParams(location.search);
 const state = {
@@ -397,20 +416,23 @@ function fillAreas(filter) {
   sel.value = state.area;
 }
 
-function counted(ask, F, T, skipIdx) {
+/* What became of one review request in the period: answered by a review or by a comment, missed,
+   or not counted (and why). Null when it is outside the period or filtered out. */
+function judge(ask, F, T, skipIdx) {
   const [, row, asked, reviewed, commented, flags] = ask;
   if (asked < F || asked >= T) return null;
   if (skipIdx >= 0 && AREA.prs[row][1] === skipIdx) return null;
   if (state.own && (flags & 16)) return null;
-  const answered = (reviewed && reviewed < T) || (state.comment && commented && commented < T);
-  if (!answered) {
-    if (flags & 7) return null;
-    if (T - asked < 7 * DAY && !AREA.prs[row][5]) return null;
-    if (state.excuse && (flags & 8)) return null;
-  }
-  return answered ? 1 : 0;
+  if (reviewed && reviewed < T) return "review";
+  if (state.comment && commented && commented < T) return "comment";
+  if (flags & 1) return "withdrawn";
+  if (flags & 2) return "closedEarly";
+  if ((flags & 4) || (T - asked < 7 * DAY && !AREA.prs[row][5])) return "pending";
+  if (state.excuse && (flags & 8)) return "excused";
+  return "miss";
 }
 
+const merged0 = (P, F, T) => P.filter((p) => p[4] >= F && p[4] < T);
 function render() {
   remember();
   const [F, T] = range();
@@ -435,12 +457,15 @@ function render() {
 
   /* per person */
   const stat = new Map();
-  const get = (i) => { if (!stat.has(i)) stat.set(i, { req: 0, num: 0, approved: 0, reviewed: 0, last: 0 }); return stat.get(i); };
+  const get = (i) => { if (!stat.has(i)) stat.set(i, { req: 0, num: 0, approved: 0, reviewed: 0, last: 0, review: 0, comment: 0, miss: 0, excused: 0, withdrawn: 0, closedEarly: 0, pending: 0 }); return stat.get(i); };
   const perPr = new Map();
   for (const a of AREA.asks) {
-    const c = counted(a, F, T, skipIdx);
-    if (c == null) continue;
-    const s = get(a[0]); s.req++; s.num += c;
+    const kind = judge(a, F, T, skipIdx);
+    if (kind == null) continue;
+    const s = get(a[0]); s[kind]++;
+    if (!["review", "comment", "miss"].includes(kind)) continue;
+    const c = kind === "miss" ? 0 : 1;
+    s.req++; s.num += c;
     perPr.set(a[1], (perPr.get(a[1]) || 0) + c);
   }
   for (const r of AREA.revs) {
@@ -475,6 +500,14 @@ function render() {
     cell("approved", String(p.s.approved));
     cell("last review", p.s.last ? iso(p.s.last) : "never");
     row.appendChild(meta); box.appendChild(row);
+    attachTip(row, p.w, () => {
+      const st = p.s, skipped = st.excused + st.withdrawn + st.closedEarly + st.pending;
+      const lines = [["", "Asked on " + st.req + " pull requests that count: " + st.review + " answered with a review, " + st.comment + " with a comment only, " + st.miss + " not answered."]];
+      if (skipped) lines.push(["Not counted", [[st.excused, "excused (closed, or approved by two others, within a week)"], [st.withdrawn, "withdrawn"], [st.pending, "still pending"], [st.closedEarly, "closed too soon"]].filter(([n]) => n).map(([n, t]) => n + " " + t).join("; ")]);
+      lines.push(["", "Reviewed " + st.reviewed + " pull requests here in the period, asked or not, and approved " + st.approved + "."]);
+      lines.push(["Group", { regular: "regular reviewer", occasional: "occasional reviewer", silent: "silent", unrated: "too few requests to tell (fewer than " + MIN_REQ + ")" }[p.tier]]);
+      return lines;
+    });
     if (isM) continue;
     if (few) thin.push(p.w); else if (ok) keep.push(p.w); else { drop.push(p.w); lost += p.s.approved; }
   }
@@ -530,6 +563,38 @@ function render() {
     else if (regular.length < 2) cs("It takes three regular reviewers for every pull request to have two.");
   }
 
+  /* the Maintainer */
+  const mt = $("maint-text"); mt.textContent = "";
+  const ms = (t) => mt.appendChild(document.createTextNode(t));
+  const mn = (a) => mt.appendChild(el("span", "names", a));
+  const maint = people.filter((p) => p.role === "M");
+  const maintIdx = new Set(maint.map((p) => L.indexOf(p.w)));
+  if (!maint.length) { $("maint-title").textContent = "The Maintainer: none listed"; ms("This area lists no Maintainer."); }
+  else {
+    const wrote = readyPrs.filter((p) => maintIdx.has(p[1])).length, topM = Math.max(...maint.map((p) => p.s.reviewed));
+    const other = [...stat.entries()].filter(([i, st]) => !maintIdx.has(i) && st.reviewed > 0).sort((a, b) => b[1].reviewed - a[1].reviewed)[0];
+    const share = readyPrs.length ? wrote / readyPrs.length : 0;
+    const mstate = !other || topM >= other[1].reviewed ? "leads" : maint.some((p) => p.tier === "regular") ? "second" : share >= 0.5 ? "author" : "behind";
+    $("maint-title").textContent = "The Maintainer: " + { leads: "reviews the most", second: "second in reviews", author: "writes most of the code", behind: "behind in reviews" }[mstate];
+    maint.forEach((p, k) => { if (k) ms("; "); mn(p.w); ms(" reviewed " + p.s.reviewed + " of the area's pull requests"); });
+    ms(". ");
+    if (readyPrs.length) ms((maint.length > 1 ? "Together they wrote " : "They wrote ") + pc(share) + " of the area's pull requests, which someone else has to review. ");
+    if (other) { ms("The most active other reviewer is "); mn(L[other[0]]); ms(", " + (AREA.roster.has(L[other[0]]) ? "a Collaborator" : "not listed") + ", with " + other[1].reviewed + "."); }
+  }
+  const at = $("assignee-text"); at.textContent = "";
+  const known = P.filter((p) => p[9] !== -2).length;
+  if (!known) at.textContent = "The assignees of this area's pull requests are not known yet.";
+  else {
+    const stuck = P.filter((p) => !p[5] && !p[8] && p[3] && p[12] && !p[10] && p[11] >= 2);
+    const waits = P.filter((p) => p[3] >= F && p[3] < T && p[12] && p[10]).map((p) => Math.max(0, p[10] - p[3]) / DAY);
+    const mergedKnown = merged0(P, F, T).filter((p) => p[9] >= 0), ownAssigned = mergedKnown.filter((p) => p[12]).length;
+    at.appendChild(document.createTextNode(stuck.length ? stuck.length + " open pull requests have two approvals but none from their assignee, with one of this area's Maintainers assigned: " : "No open pull request with two approvals is waiting for a Maintainer of this area as assignee. "));
+    stuck.slice(0, 12).forEach((p, k) => { if (k) at.appendChild(document.createTextNode(", ")); const a = el("a", null, "#" + p[0]); a.href = "https://github.com/" + INDEX.repo + "/pull/" + p[0]; a.target = "_blank"; a.rel = "noopener"; at.appendChild(a); });
+    if (stuck.length) at.appendChild(document.createTextNode(stuck.length > 12 ? ", ... " : ". "));
+    if (mergedKnown.length) at.appendChild(document.createTextNode("Of the " + mergedKnown.length + " pull requests merged in the period whose assignee is known, " + ownAssigned + " had one of this area's Maintainers assigned. "));
+    if (waits.length) at.appendChild(document.createTextNode("Where one is assigned, the assignee's approval came a median of " + f1(median(waits)) + " days after ready (" + waits.length + " pull requests)."));
+  }
+
   /* where the approvals of merged pull requests came from */
   const approvers = new Map();
   for (const r of AREA.revs) { if (r[3]) { if (!approvers.has(r[1])) approvers.set(r[1], []); approvers.get(r[1]).push(r[0]); } }
@@ -572,6 +637,12 @@ function render() {
       tr.appendChild(el("td", null, isCandidate(st) ? "yes" : ""));
       tr.appendChild(el("td", null, STANDING[(AREA.standing || [])[i] ?? -1]));
       body.appendChild(tr);
+      attachTip(tr, L[i], () => {
+        const behind = people.filter((p) => p.s.reviewed < st.reviewed).map((p) => p.w);
+        return [["", "Reviewed " + st.reviewed + " of the " + readyPrs.length + " pull requests that became ready in the period, and approved " + st.approved + "."],
+          ["Reviewed more than", behind.length ? behind.join(", ") : "nobody listed"],
+          ["", isCandidate(st) ? "A candidate: ahead of at least half of the " + listedCounts.length + " listed people." : "Not a candidate: behind more than half of the " + listedCounts.length + " listed people" + (st.reviewed < 5 ? ", and fewer than five reviews." : ".")]];
+      });
     }
     ctab.appendChild(body);
   } else { const tr = el("tr"); tr.appendChild(el("td", null, "Nobody who is not listed reviewed five or approved three pull requests here in this period.")); ctab.appendChild(tr); }
@@ -627,6 +698,9 @@ function render() {
     const g = give.get(i) || 0;
     [b.brought, b.merged, g, f1(g / b.brought)].forEach((x) => tr.appendChild(el("td", "n", String(x))));
     tb.appendChild(tr);
+    attachTip(tr, L[i], () => [["", "Brought " + b.brought + " pull requests to review in the period; " + b.merged + " of this person's were merged."],
+      ["", "Approved " + g + " pull requests of others here. Each merged pull request uses at least two approvals from others, so " + (g >= 2 * b.brought ? "this person gives at least as much review as they use." : "this person uses more review than they give in this area.")],
+      ["", AREA.roster.has(L[i]) ? "Listed for this area." : "Not listed for this area."]]);
   }
   t.appendChild(tb);
 }
@@ -634,21 +708,22 @@ function render() {
 /* ---------- all areas ---------- */
 const STATUS = { none: "No regular", single: "One regular", thin: "Thin", covered: "Covered" };
 const STATUS_RANK = { none: 0, single: 1, thin: 2, covered: 3 };
+const MSTATE = { none: "No Maintainer", behind: "Behind", second: "Second", author: "Writes most", leads: "Reviews the most" };
+const MRANK = { none: 0, behind: 1, second: 2, author: 3, leads: 4 };
 const COLS = [
   { key: "name", label: "Area" },
   { key: "rank", label: "Review cover", first: 1, fmt: (v, r) => STATUS[r.status] },
   { key: "regular", label: "Listed: regular · occas. · silent", first: 1, fmt: (v, r) => r.listed + ": " + r.tiers[0] + " · " + r.tiers[1] + " · " + r.tiers[2] + (r.tiers[3] ? " · " + r.tiers[3] + "?" : "") },
-  { key: "perWeek", label: "PRs/week", first: -1, fmt: f1 },
+  { key: "mrank", label: "Maintainer", first: 1, fmt: (v, r) => MSTATE[r.mstate] },
   { key: "perRegular", label: "PRs/week per regular", first: -1, fmt: (v) => v === Infinity ? "no regular" : f1(v) },
   { key: "notCovered", label: "Not covered", first: -1, fmt: pc },
-  { key: "regAlone", label: "Regulars alone", first: 1, fmt: pc },
-  { key: "noListed", label: "No listed reviewer", first: -1, fmt: pc },
-  { key: "second", label: "2nd approval (d)", first: -1, fmt: f1 },
   { key: "openChange", label: "Open now (change)", first: -1, fmt: (v, r) => r.openNow + " (" + (v > 0 ? "+" : "") + v + ")", plain: (v) => (v > 0 ? "+" : "") + f1(v) },
+  { key: "second", label: "2nd approval (d)", first: -1, fmt: f1 },
   { key: "waiting", label: "Waiting >2 wk", first: -1, fmt: (v) => v },
+  { key: "onAssignee", label: "Waiting on assignee", first: -1, fmt: (v) => v },
   { key: "candidates", label: "Candidates", first: -1, fmt: (v) => v },
 ];
-const SORTS = [["rank", 1, "By cover state"], ["notCovered", -1, "Largest share not covered"], ["perRegular", -1, "Most per regular reviewer"], ["openChange", -1, "Fastest growing queue"], ["second", -1, "Slowest second approval"], ["waiting", -1, "Most waiting"], ["candidates", -1, "Most candidates"]];
+const SORTS = [["rank", 1, "By cover state"], ["notCovered", -1, "Largest share not covered"], ["mrank", 1, "Maintainer behind"], ["perRegular", -1, "Most per regular reviewer"], ["openChange", -1, "Fastest growing queue"], ["second", -1, "Slowest second approval"], ["waiting", -1, "Most waiting"], ["onAssignee", -1, "Most waiting on the assignee"], ["candidates", -1, "Most candidates"]];
 
 function areaRows() {
   const days = state.days || 90, weeks = days / 7;
@@ -657,10 +732,9 @@ function areaRows() {
     return {
       name: a.name, shares: a.shares_label, listed: a.maintainers + a.collaborators, tiers: w.tiers, regular: w.tiers[0],
       status: w.status, rank: STATUS_RANK[w.status], ready: w.ready, perWeek: w.ready / weeks,
+      mstate: w.maintainer.state, mrank: MRANK[w.maintainer.state], onAssignee: a.on_assignee, onAssigneePrs: a.on_assignee_prs,
       perRegular: w.tiers[0] ? w.ready / weeks / w.tiers[0] : (w.ready ? Infinity : null),
       notCovered: covered >= 5 ? (w.cover[0] + w.cover[1]) / covered : null,
-      regAlone: merged >= 5 ? w.outcome[0] / merged : null,
-      noListed: w.asked_prs >= 5 ? w.silent_prs / w.asked_prs : null,
       second: w.second_approval, waiting: a.waiting, candidates: w.candidate_count, w, days,
       openNow: a.open[a.open.length - 1], openChange: a.open[a.open.length - 1] - w.open_start,
       trend: a.open.slice(-(Math.round(days / 7) + 1)),
@@ -701,7 +775,7 @@ function renderAll() {
 
   /* best and worst tenth of the areas in scope, in the columns with a real spread */
   const marks = {};
-  for (const key of ["perRegular", "second", "waiting", "openChange"]) {
+  for (const key of ["perRegular", "second", "waiting", "openChange", "onAssignee"]) {
     const v = inScope.map((r) => r[key]).filter((x) => x != null && x !== Infinity).sort((a, b) => a - b);
     if (v.length < 20) continue;
     const lo = v[Math.floor(v.length * 0.1)], hi = v[Math.ceil(v.length * 0.9) - 1];
@@ -713,7 +787,7 @@ function renderAll() {
   const table = $("overview"); table.textContent = "";
   const th = el("thead"), hr = el("tr");
   for (const c of COLS) {
-    const h = el("th", c.key === "name" || c.key === "rank" ? null : "n"), b = el("button", null, c.label); b.type = "button";
+    const h = el("th", ["name", "rank", "mrank"].includes(c.key) ? null : "n"), b = el("button", null, c.label); b.type = "button";
     if (c.key === state.sort) h.setAttribute("aria-sort", state.dir > 0 ? "ascending" : "descending");
     b.addEventListener("click", () => { if (state.sort === c.key) { state.dir = -state.dir; } else { state.sort = c.key; state.dir = c.first || 1; } renderAll(); });
     h.appendChild(b); hr.appendChild(h);
@@ -728,8 +802,10 @@ function renderAll() {
     tr.appendChild(td);
     for (const c of COLS.slice(1)) {
       const x = r[c.key], mark = markOf(c.key, x);
-      const cell = el("td", c.key === "rank" ? "status" : "n" + mark, c.key === "rank" || x == null ? (x == null ? "n/a" : "") : String(c.fmt(x, r)));
+      const isState = c.key === "rank" || c.key === "mrank";
+      const cell = el("td", isState ? "status" : "n" + mark, isState || x == null ? (x == null ? "n/a" : "") : String(c.fmt(x, r)));
       if (c.key === "rank") cell.appendChild(el("span", "state " + r.status, STATUS[r.status]));
+      if (c.key === "mrank") cell.appendChild(el("span", "state " + r.mstate, MSTATE[r.mstate]));
       if (mark) cell.dataset.mark = mark.trim();
       if (c.key === "openChange") cell.insertBefore(spark(r.trend), cell.firstChild);
       attachDetail(cell, c.key, r);
@@ -755,16 +831,33 @@ function detailLines(key, r) {
   const w = r.w, list = (a) => a.length ? a.join(", ") : "nobody";
   const covered = w.cover[0] + w.cover[1] + w.cover[2], merged = w.outcome.reduce((x, y) => x + y, 0);
   switch (key) {
+    case "mrank": {
+      const m = w.maintainer, lines = [];
+      if (!m.reviews.length) lines.push(["", "The area lists no Maintainer."]);
+      for (const [who, n] of m.reviews) lines.push([who, "reviewed " + n + " of the area's pull requests"]);
+      if (m.reviews.length) lines.push(["", "The Maintainer" + (m.reviews.length > 1 ? "s" : "") + " wrote " + pc(m.wrote) + " of the area's pull requests, which someone else has to review."]);
+      if (m.other) lines.push(["Most active other reviewer", m.other[0] + ", " + m.other[1] + " reviewed (" + (m.other[2] ? "listed" : "not listed") + ")"]);
+      lines.push(["", "Only reviews are counted here. Triage, design and release work do not show."]);
+      return lines;
+    }
+    case "onAssignee": {
+      const lines = [["", r.onAssignee ? r.onAssignee + " open pull requests have two approvals but none from their assignee, with one of this area's Maintainers assigned: " + r.onAssigneePrs.map((n) => "#" + n).join(", ") + (r.onAssignee > r.onAssigneePrs.length ? ", ..." : "") : "No open pull request with two approvals is waiting for an approval from one of this area's Maintainers as assignee."]];
+      if (w.assignee_merged) lines.push(["", "Of the " + w.assignee_merged + " merged pull requests whose assignee is known, " + w.assignee_own + " had one of this area's Maintainers assigned."]);
+      if (w.assignee_days != null) lines.push(["", "Where one is assigned, the assignee's approval came a median of " + f1(w.assignee_days) + " days after ready (" + w.assignee_n + " pull requests)."]);
+      lines.push(["", "Assignees are added and changed by hand; this takes whoever is assigned now."]);
+      return lines;
+    }
     case "rank": {
       const lines = [["", { none: "Nobody listed is a regular reviewer.", single: "One listed person is a regular reviewer: " + list(w.people[0]) + ".", thin: "Regular reviewers: " + list(w.people[0]) + ". They also write much of the code.", covered: "Regular reviewers: " + list(w.people[0]) + "." }[r.status]]];
       if (covered) lines.push(["", (w.cover[0] + w.cover[1]) + " of " + covered + " pull requests have fewer than two regular reviewers besides their author."]);
       if (w.top_author && covered) lines.push(["Main author", w.top_author + ", " + pc(w.top_author_prs / covered) + " of the pull requests"]);
+      if (w.asked_prs) lines.push(["", w.silent_prs + " of " + w.asked_prs + " pull requests got no review or comment from anyone listed."]);
       return lines;
     }
     case "regular": return [["Regular", list(w.people[0])], ["Occasional", list(w.people[1])], ["Silent", list(w.people[2])]].concat(w.people[3].length ? [["Too few requests to tell", list(w.people[3])]] : []);
     case "perWeek": return [["", w.ready + " pull requests became ready for review in " + r.days + " days."]];
     case "perRegular": return [["", f1(r.perWeek) + " pull requests a week, " + (w.tiers[0] ? "divided by " + w.tiers[0] + " regular reviewer" + (w.tiers[0] > 1 ? "s" : "") + ": " + list(w.people[0]) : "and no regular reviewer") + "."]];
-    case "notCovered": return [["", "Of " + covered + " pull requests, by regular reviewers besides the author:"], ["Two or more", String(w.cover[2])], ["One", String(w.cover[1])], ["None", String(w.cover[0])]];
+    case "notCovered": return [["", "Of " + covered + " pull requests, by regular reviewers besides the author:"], ["Two or more", String(w.cover[2])], ["One", String(w.cover[1])], ["None", String(w.cover[0])], ["", "Of " + merged + " merged, " + w.outcome[0] + " got both approvals from regular reviewers, " + w.outcome[1] + " needed an occasional listed one and " + w.outcome[2] + " someone not listed."]];
     case "regAlone": return [["", "The two approvals of the " + merged + " merged pull requests came from:"], ["Regular reviewers alone", String(w.outcome[0])], ["With an occasional listed reviewer", String(w.outcome[1])], ["With someone not listed", String(w.outcome[2])]].concat(w.outcome[3] ? [["Fewer than two on record", String(w.outcome[3])]] : []);
     case "noListed": return [["", w.silent_prs + " of the " + w.asked_prs + " pull requests that asked the list got no review or comment from anyone listed."]];
     case "second": return [["", w.second_approval == null ? "No pull request got a second approval." : "Median of " + w.second_n + " pull requests, from ready for review to the second approval." + (w.first_review != null ? " The first review took " + f1(w.first_review) + " days." : "")]];
@@ -780,13 +873,19 @@ function detailLines(key, r) {
   return [];
 }
 function attachDetail(cell, key, r) {
-  const tip = $("tip");
-  const show = () => {
+  attachTip(cell, r.name, () => {
     const lines = detailLines(key, r);
     if (cell.dataset.mark) lines.push(["", cell.dataset.mark === "worst" ? "Among the worst tenth of the areas in scope." : "Among the best tenth of the areas in scope."]);
+    return lines;
+  });
+}
+function attachTip(cell, title, getLines) {
+  const tip = $("tip");
+  const show = () => {
+    const lines = getLines();
     if (!lines.length) return;
     tip.textContent = ""; tip.className = "tip wide";
-    tip.appendChild(el("div", null)).appendChild(el("b", null, r.name));
+    tip.appendChild(el("div", null)).appendChild(el("b", null, title));
     for (const [label, text] of lines) { const d = el("div"); if (label) { d.appendChild(el("b", null, label + ": ")); } d.appendChild(document.createTextNode(text)); tip.appendChild(d); }
     tip.hidden = false;
     const box = cell.getBoundingClientRect(), width = tip.offsetWidth, height = tip.offsetHeight, view = document.documentElement.clientWidth;
@@ -806,14 +905,14 @@ function attachDetail(cell, key, r) {
 /* where every shown area sits on the measure the table is sorted by */
 function drawStrip(rows, col) {
   const host = $("strip"); host.textContent = "";
-  const numeric = !["name", "rank", "regular"].includes(col.key);
+  const numeric = !["name", "rank", "regular", "mrank"].includes(col.key);
   $("strip-title").textContent = numeric ? "Spread of the areas: " + col.label.toLowerCase() : "";
   $("strip-note").textContent = numeric ? "One mark per area. Sort the table by another column to see that spread." : "";
   if (!numeric) return;
   const pts = rows.filter((r) => r[col.key] != null);
   if (!pts.length) return;
   const finite = pts.map((r) => r[col.key]).filter((v) => v !== Infinity).sort((a, b) => a - b);
-  const isShare = ["notCovered", "regAlone", "noListed"].includes(col.key);
+  const isShare = ["notCovered"].includes(col.key);
   const cap = isShare ? 1 : (finite.length ? finite[Math.min(finite.length - 1, Math.floor(finite.length * 0.97))] || 1 : 1);
   const hasInf = pts.some((r) => r[col.key] === Infinity);
   const W = host.clientWidth || 600, H = 74, l = 8, r = hasInf ? 110 : 16;
@@ -946,6 +1045,7 @@ async function start() {
     const oldest = (INDEX.oldest || "").slice(0, 10);
     if (!INDEX.complete && INDEX.format === FORMAT) { c.textContent = "The history is still being filled in. So far it holds the pull requests updated since " + oldest + "; periods that start earlier are incomplete."; c.hidden = false; }
     else { $("stamp").textContent += " · updated since " + oldest; }
+    if (INDEX.format === FORMAT && INDEX.complete && INDEX.assignee_known < 0.98) { c.textContent = "Assignees are still being collected (" + pc(INDEX.assignee_known) + " of the pull requests so far), so the figures about waiting for the assignee are incomplete."; c.hidden = false; }
   }
   [30, 90, 180, 365].forEach((d) => { const b = el("button", null, "Last " + d + " days"); b.type = "button"; b.dataset.days = d; b.addEventListener("click", () => { state.days = d; renderAll(); }); $("all-presets").appendChild(b); });
   [["", "All"], ["none", "No regular"], ["single", "One regular"], ["thin", "Thin"], ["covered", "Covered"]].forEach(([st, label]) => { const b = el("button", null, label); b.type = "button"; b.dataset.status = st; b.addEventListener("click", () => { state.status = st; renderAll(); }); $("statuses").appendChild(b); });

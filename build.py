@@ -69,6 +69,8 @@ class PR:
         self.author = raw["a"]
         self.created, self.closed, self.merged = raw["c"], raw["cl"], raw["m"]
         self.draft_now = raw["d"]
+        # None when the record predates the fetching of assignees
+        self.assignees = raw.get("as")
         # GitHub treats label names without regard to case, and MAINTAINERS.yml
         # does not always spell them as the repository does.
         self.labels = {label.lower() for label in raw["l"]}
@@ -125,9 +127,20 @@ def build_area(name: str, area: dict, prs: list[PR], maintains: dict, now: int,
     for row, pr in enumerate(sorted(prs, key=lambda p: p.n)):
         approvals = pr.approvals()
         first_review = min((t for t, _, _ in pr.reviews), default=0)
+        # The assignee whose approval a merge needs: -2 not known, -1 none
+        # (or the author, who cannot approve), else the first assignee.
+        others = None if pr.assignees is None else [w for w in pr.assignees if w != pr.author]
+        assignee = -2 if others is None else (idx(others[0]) if others else -1)
+        assignee_approval = 0 if not others else min(
+            (t for t, w in approvals if w in others), default=0)
+        # Assignees get added and switched by hand, so "the assignee" is
+        # whoever is assigned now, and any of them may give the approval. The
+        # last field says whether one of this area's Maintainers is among them.
+        own = 1 if others and any(w in maintainers for w in others) else 0
         rows.append([pr.n, idx(pr.author) if pr.author else -1, pr.created, pr.first_ready,
                      pr.merged, pr.closed, first_review,
-                     approvals[1][0] if len(approvals) > 1 else 0, pr.draft_now])
+                     approvals[1][0] if len(approvals) > 1 else 0, pr.draft_now,
+                     assignee, assignee_approval, len(approvals), own])
         end = pr.closed or now
         for who in roster:
             events = sorted(pr.requests.get(who, []))
@@ -171,7 +184,7 @@ def build_area(name: str, area: dict, prs: list[PR], maintains: dict, now: int,
 
 # Version of the data files' layout. The page carries the same number and
 # refuses to mix a page of one version with data of another.
-FORMAT = 3
+FORMAT = 4
 WINDOWS = (30, 90, 180, 365)
 WAITING = 14 * DAY
 REGULAR = 0.5      # a regular reviewer answers at least this share of requests
@@ -229,7 +242,13 @@ def summarize(data: dict, now: int) -> dict:
     for back in range(52, -1, -1):
         at = now - back * 7 * DAY
         weekly.append(sum(1 for p in prs if p[2] <= at and (not p[5] or p[5] > at)))
-    out = {"waiting": waiting, "open": weekly, "w": {}}
+    maintainers = [logins.index(w) for w in data["maintainers"]]
+    # open and ready, approved by two others but not yet by an assignee,
+    # with one of this area's Maintainers as assignee
+    on_assignee = [p[0] for p in prs if not p[5] and not p[8] and p[3]
+                   and p[12] and not p[10] and p[11] >= 2]
+    out = {"waiting": waiting, "open": weekly, "on_assignee": len(on_assignee),
+           "on_assignee_prs": on_assignee[:8], "w": {}}
     for days in WINDOWS:
         start = now - days * DAY
         per_pr: dict[int, int] = {}
@@ -284,6 +303,26 @@ def summarize(data: dict, now: int) -> dict:
                 outcome[2] += 1
             else:
                 outcome[3] += 1
+        # The Maintainer's standing: reviews against the most active other
+        # person, and how much of the area's code the Maintainer writes.
+        m_reviews = [[logins[m], reviewed_by.get(m, 0)] for m in maintainers]
+        top_m = max((n for _w, n in m_reviews), default=0)
+        other = max(((n, w) for w, n in reviewed_by.items() if w not in maintainers),
+                    default=(0, -1))
+        m_wrote = sum(authors.get(m, 0) for m in maintainers) / len(ready) if ready else 0
+        if not maintainers:
+            standing = "none"
+        elif top_m >= other[0]:
+            standing = "leads"
+        elif any(m in regular for m in maintainers):
+            standing = "second"
+        elif m_wrote >= 0.5:
+            standing = "author"
+        else:
+            standing = "behind"
+        # the assignee, whose approval every merge needs
+        assigned = [p for p in prs if p[4] >= start and p[9] >= 0]
+        to_assignee = [max(0, p[10] - p[3]) / DAY for p in ready if p[12] and p[10]]
         second = [max(0, p[7] - p[3]) / DAY for p in ready if p[7]]
         first_review = [max(0, p[6] - p[3]) / DAY for p in ready if p[6]]
         # Candidates for the list: people who are not listed but reviewed more
@@ -314,6 +353,14 @@ def summarize(data: dict, now: int) -> dict:
             "first_review": None if not first_review else round(median(first_review), 2),
             "second_approval": None if not second else round(median(second), 2),
             "second_n": len(second),
+            "maintainer": {"state": standing, "reviews": m_reviews,
+                           "wrote": round(m_wrote, 3),
+                           "other": None if other[1] < 0 else
+                           [logins[other[1]], other[0], other[1] in listed]},
+            "assignee_days": None if not to_assignee else round(median(to_assignee), 2),
+            "assignee_n": len(to_assignee),
+            "assignee_merged": len(assigned),
+            "assignee_own": sum(1 for p in assigned if p[12]),
             "candidates": [[w, n, ahead] for n, w, ahead in candidates[:8]],
             "candidate_count": len(candidates),
             "outside": [[w, n, ahead] for n, w, ahead in outside[:5]],
@@ -405,6 +452,8 @@ def main() -> None:
         "oldest": cache["state"].get("oldest"), "complete": cache["state"].get("complete"),
         "pull_requests": len(prs), "truncated": sum(1 for r in cache["prs"].values() if r.get("x")),
         "standing_known": round(sum(1 for r in cache["prs"].values() if r.get("v", 1) >= 2)
+                                / max(len(cache["prs"]), 1), 3),
+        "assignee_known": round(sum(1 for r in cache["prs"].values() if "as" in r)
                                 / max(len(cache["prs"]), 1), 3),
         "areas": index}, separators=(",", ":")))
     (args.out / "summary.json").write_text(json.dumps(

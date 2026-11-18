@@ -50,6 +50,7 @@ query($owner: String!, $name: String!, $number: Int!) {
     pullRequest(number: $number) {
       number title isDraft createdAt updatedAt closedAt mergedAt
       author { login }
+      assignees(first: 5) { nodes { login } }
       labels(first: 40) { nodes { name } }
       reviews(first: 100) {
         totalCount
@@ -88,7 +89,7 @@ REVIEW_STATE = {"APPROVED": "A", "CHANGES_REQUESTED": "R", "COMMENTED": "C",
 # organization, C an outside collaborator, N neither.
 ASSOCIATION = {"MEMBER": "M", "OWNER": "M", "COLLABORATOR": "C"}
 # Version of the cached record; older records are fetched again.
-SCHEMA = 2
+SCHEMA = 3
 
 
 class Budget:
@@ -174,6 +175,7 @@ def reduce_pr(pr: dict) -> dict:
         "c": minutes(pr["createdAt"]), "cl": minutes(pr["closedAt"]),
         "m": minutes(pr["mergedAt"]), "d": 1 if pr["isDraft"] else 0,
         "u": pr["updatedAt"],
+        "as": [n["login"] for n in pr["assignees"]["nodes"]],
         "l": sorted(n["name"] for n in pr["labels"]["nodes"]),
         "rv": sorted([minutes(r["submittedAt"]), login(r), REVIEW_STATE.get(r["state"], "C"),
                       ASSOCIATION.get(r.get("authorAssociation"), "N")]
