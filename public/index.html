@@ -217,7 +217,7 @@ ul.plain { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
   </div>
   <div class="panel">
     <h3>Reviewers who are not on the list</h3>
-    <p class="note">An approval by any member of the organization counts towards a merge, so these people already carry part of the area's review. Those who reviewed a tenth of the area's pull requests or more are marked as regular here: they are the candidates for the list.</p>
+    <p class="note">An approval by any member of the organization counts towards a merge, so these people already carry part of the area's review. Those who reviewed a tenth of the area's pull requests or more are marked as regular here: they are the candidates for the list. The last column can only tell public members of the organization apart: someone whose membership is private shows as "membership not visible", the same as someone who is not a member.</p>
     <div class="scroll"><table id="candidates"></table></div>
   </div>
 </section>
@@ -474,12 +474,12 @@ function render() {
   $("outcome-note").textContent = merges ? "The " + merges + " pull requests merged in the period, by who gave their two approvals. Review cover above says what the list can supply; this says what happened." : "No pull request was merged in this period.";
 
   /* reviewers who are not listed */
-  const STANDING = { 2: "member of the organization", 1: "outside collaborator", 0: "not a member", "-1": "not known yet" };
+  const STANDING = { 2: "public member of the organization", 1: "outside collaborator", 0: "membership not visible", "-1": "not known yet" };
   const outside = [...stat.entries()].filter(([i, s]) => !AREA.roster.has(L[i]) && (s.approved >= 3 || s.reviewed >= 5)).sort((a, b) => b[1].approved - a[1].approved || b[1].reviewed - a[1].reviewed).slice(0, 8);
   const ctab = $("candidates"); ctab.textContent = "";
   if (outside.length) {
     const h = el("thead"), r0 = el("tr");
-    [["Reviewer", ""], ["Reviewed", "n"], ["Approved", "n"], ["Share of the area's pull requests", "n"], ["Last review", "n"], ["Regular here", ""], ["Standing", ""]].forEach(([t, c]) => r0.appendChild(el("th", c, t)));
+    [["Reviewer", ""], ["Reviewed", "n"], ["Approved", "n"], ["Share of the area's pull requests", "n"], ["Last review", "n"], ["Regular here", ""], ["Organization", ""]].forEach(([t, c]) => r0.appendChild(el("th", c, t)));
     h.appendChild(r0); ctab.appendChild(h);
     const body = el("tbody");
     for (const [i, st] of outside) {

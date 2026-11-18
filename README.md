@@ -44,8 +44,8 @@ and a line you can move: Collaborators below it would come off the list at
 that level. Below that: the review cover as a bar with a sentence naming who
 is counted and whose pull requests are short; where the two approvals of the
 merged pull requests actually came from; the most active reviewers who are not
-on the list, with their standing in the repository (member of the
-organization, outside collaborator, neither), as candidates for it; and the
+on the list as candidates for it, marked where GitHub shows them as public
+members of the organization; and the
 flow through the area (pull requests opened and merged, time to the first
 review, the second approval and the merge, and who brings review work against
 who gives it).
@@ -113,7 +113,10 @@ Nowhere but in the published site; nothing of it is in this repository.
   before compression. A record holds the title, author, labels, the creation,
   close and merge times, and lists of reviews (time, login, state), comments
   (time, login), review requests (time, login, asked or withdrawn) and draft
-  changes. A review also carries the reviewer's standing in the repository. Times are minutes since the epoch. Pull requests not updated for a
+  changes. A review also carries what GitHub reports as the reviewer's
+  association with the repository. The workflow's token is not a member of
+  the organization, so it sees only public memberships: private members are
+  reported like people who are not members. Times are minutes since the epoch. Pull requests not updated for a
   year are dropped.
 - `data/index.json` lists the areas, and `data/<area>.json` holds an area's
   roster, a table of logins and three arrays of integer rows: pull requests,

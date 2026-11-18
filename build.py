@@ -162,8 +162,9 @@ def build_area(name: str, area: dict, prs: list[PR], maintains: dict, now: int,
     return {"name": name, "status": area.get("status"), "label": primary_label(name, area),
             "maintainers": maintainers, "collaborators": collaborators,
             "logins": logins,
-            # 2 member of the organization, 1 outside collaborator, 0 neither,
-            # -1 not known yet
+            # 2 public member of the organization, 1 outside collaborator,
+            # 0 neither as far as the fetching token can see (a private
+            # member looks like this too), -1 not known yet
             "standing": [{"M": 2, "C": 1, "N": 0}.get(standing.get(w), -1) for w in logins],
             "prs": rows, "asks": asks, "revs": revs}
 
