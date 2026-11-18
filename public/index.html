@@ -339,7 +339,8 @@ const median = (v) => { if (!v.length) return null; v = v.slice().sort((a, b) =>
 const profile = (login) => { const a = el("a", null, login); a.href = "https://github.com/" + login; a.target = "_blank"; a.rel = "noopener"; return a; };
 const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
-let INDEX = null, AREA = null, SUMMARY = null;
+const FORMAT = 3;  /* must match FORMAT in build.py */
+let INDEX = null, AREA = null, SUMMARY = null, VERSION = "";
 const params = new URLSearchParams(location.search);
 const state = {
   view: params.get("view") || (params.has("area") ? "area" : "all"),
@@ -382,7 +383,7 @@ function range() {
 async function loadArea(name) {
   const entry = INDEX.areas.find((a) => a.name === name) || INDEX.areas[0];
   state.area = entry.name;
-  AREA = await (await fetch("data/" + entry.file)).json();
+  AREA = await (await fetch("data/" + entry.file + VERSION)).json();
   AREA.roster = new Set(AREA.maintainers.concat(AREA.collaborators));
   if ($("area").value !== state.area) fillAreas($("filter").value);
   if (state.view === "area") render(); else remember();
@@ -770,7 +771,7 @@ function detailLines(key, r) {
     case "openChange": return [["", r.openNow + " open now, " + w.open_start + " at the start of the " + r.days + " days."], ["Opened", String(w.opened)], ["Merged", String(w.merged)], ["Closed without merging", String(w.closed)], ["", "The small line shows the open count week by week; drafts are included."]];
     case "waiting": return [["", r.waiting + " open pull requests are ready for review and have had no review for two weeks or more. This figure is as of now, not for the period."]];
     case "candidates": {
-      const listed = r.listed, line = ([who, n, ahead]) => [who, n + " reviewed" + (listed ? ", more than " + ahead + " of the " + listed + " listed" : "")];
+      const listed = r.listed, line = ([who, n, ahead]) => [who, n + " reviewed" + (listed && ahead != null ? ", more than " + ahead + " of the " + listed + " listed" : "")];
       if (!listed) return w.candidates.length ? [["", "Nobody is listed for this area. People who reviewed five or more of its pull requests:"]].concat(w.candidates.map(line)) : [["", "Nobody is listed for this area, and nobody reviewed five of its pull requests."]];
       if (w.candidates.length) return [["", "Not listed, but reviewed more than at least half of the listed people did:"]].concat(w.candidates.map(line));
       return [["", "Nobody who is not listed reviewed more than half of the listed people did."]].concat(w.outside.length ? [["", "The most active people who are not listed:"]].concat(w.outside.slice(0, 3).map(line)) : []);
@@ -916,8 +917,18 @@ function drawChart(buckets) {
 }
 
 async function start() {
-  INDEX = await (await fetch("data/index.json")).json();
-  SUMMARY = await (await fetch("data/summary.json")).json();
+  /* The index is always checked with the server; every other data file is asked for by the
+     index's own time stamp, so the browser never pairs files of two different builds. */
+  INDEX = await (await fetch("data/index.json", { cache: "no-cache" })).json();
+  VERSION = "?v=" + encodeURIComponent(INDEX.generated || "");
+  if (INDEX.format !== FORMAT) {
+    let tried = false;
+    try { tried = sessionStorage.getItem("reloaded") === String(INDEX.format); sessionStorage.setItem("reloaded", String(INDEX.format)); } catch (e) { tried = true; }
+    if (!tried && INDEX.format > FORMAT) { location.reload(); return; }
+    const c = $("coverage"); c.hidden = false;
+    c.textContent = "This page and its data come from two different versions of the site, so some figures may be missing or wrong. That lasts a few minutes after an update: reload the page shortly.";
+  }
+  SUMMARY = await (await fetch("data/summary.json" + VERSION)).json();
   $("stamp").textContent = INDEX.repo + " · data of " + (INDEX.generated || "").slice(0, 16).replace("T", " ") + " UTC · " + INDEX.pull_requests.toLocaleString("en-US") + " pull requests";
   $("repo-link").href = "https://github.com/" + (document.querySelector('meta[name="source"]')?.content || "jhedberg/zephyr-review-capacity");
   [30, 90, 180, 365].forEach((d) => { const b = el("button", null, "Last " + d + " days"); b.type = "button"; b.dataset.days = d; b.addEventListener("click", () => { state.days = d; render(); }); $("presets").appendChild(b); });
@@ -933,7 +944,7 @@ async function start() {
   if (!INDEX.complete || INDEX.oldest) {
     const c = $("coverage");
     const oldest = (INDEX.oldest || "").slice(0, 10);
-    if (!INDEX.complete) { c.textContent = "The history is still being filled in. So far it holds the pull requests updated since " + oldest + "; periods that start earlier are incomplete."; c.hidden = false; }
+    if (!INDEX.complete && INDEX.format === FORMAT) { c.textContent = "The history is still being filled in. So far it holds the pull requests updated since " + oldest + "; periods that start earlier are incomplete."; c.hidden = false; }
     else { $("stamp").textContent += " · updated since " + oldest; }
   }
   [30, 90, 180, 365].forEach((d) => { const b = el("button", null, "Last " + d + " days"); b.type = "button"; b.dataset.days = d; b.addEventListener("click", () => { state.days = d; renderAll(); }); $("all-presets").appendChild(b); });

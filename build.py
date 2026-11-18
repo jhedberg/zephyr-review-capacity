@@ -169,6 +169,9 @@ def build_area(name: str, area: dict, prs: list[PR], maintains: dict, now: int,
             "prs": rows, "asks": asks, "revs": revs}
 
 
+# Version of the data files' layout. The page carries the same number and
+# refuses to mix a page of one version with data of another.
+FORMAT = 3
 WINDOWS = (30, 90, 180, 365)
 WAITING = 14 * DAY
 REGULAR = 0.5      # a regular reviewer answers at least this share of requests
@@ -398,14 +401,15 @@ def main() -> None:
                         "shares_label": 1 if borrows(name, label) else 0,
                         **summarize(data, now)})
     (args.out / "index.json").write_text(json.dumps({
-        "repo": args.repo, "generated": fetched, "now": now,
+        "format": FORMAT, "repo": args.repo, "generated": fetched, "now": now,
         "oldest": cache["state"].get("oldest"), "complete": cache["state"].get("complete"),
         "pull_requests": len(prs), "truncated": sum(1 for r in cache["prs"].values() if r.get("x")),
         "standing_known": round(sum(1 for r in cache["prs"].values() if r.get("v", 1) >= 2)
                                 / max(len(cache["prs"]), 1), 3),
         "areas": index}, separators=(",", ":")))
     (args.out / "summary.json").write_text(json.dumps(
-        {"now": now, "windows": list(WINDOWS), "areas": summary}, separators=(",", ":")))
+        {"format": FORMAT, "now": now, "windows": list(WINDOWS), "areas": summary},
+        separators=(",", ":")))
     print(f"{len(index)} areas from {len(prs)} pull requests")
 
 
