@@ -277,7 +277,12 @@ def summarize(data: dict, now: int) -> dict:
                 continue
             hit = bool(reviewed or commented)
             if not hit:
-                if flags & (WITHDRAWN | CLOSED_EARLY | PENDING | EXCUSED):
+                # Someone who withdraws their own request on a pull request of
+                # this area (one of its Maintainers is the assignee) is
+                # counted as if they had left the request unanswered.
+                if flags & WITHDRAWN and not (flags & DECLINED and prs[row][12]):
+                    continue
+                if flags & (CLOSED_EARLY | PENDING | EXCUSED):
                     continue
                 if now - asked < PENDING_GRACE and not prs[row][5]:
                     continue

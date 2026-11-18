@@ -99,7 +99,13 @@ The address bar holds the current view and can be shared.
   in a comment: that counts as a request here. It does not ask someone who has
   reviewed already, so a listed person's review without a request counts as
   asked and answered. It does not ask again someone who withdrew a request
-  themselves: such a request is shown as declined.
+  themselves: such a request is called declined.
+- A declined request counts like a request left unanswered when the pull
+  request is the area's own, which is taken to be the case when one of the
+  area's Maintainers is its assignee: a listed person is expected to review
+  the area's own pull requests. Elsewhere, where the area is touched in
+  passing, declining counts neither for nor against the person. The view of
+  one area can switch this off.
 - Areas marked `meta: true` in MAINTAINERS.yml (Documentation, Tests, Samples,
   Release, Benchmarks) get their label and their people asked on any pull
   request that touches their files, while the assigner treats the pull request
@@ -113,8 +119,7 @@ The address bar holds the current view and can be shared.
   is answered when the person reviews at or after the request and before the
   end of the period (or comments, if that option is on).
 - Not counted for or against anyone: the person's own pull requests, requests
-  withdrawn without an answer (by the person or by someone else), pull
-  requests closed with less than three ready
+  withdrawn by someone else without an answer, pull requests closed with less than three ready
   days after the request, open ones with less than seven ready days since the
   request. Time as a draft is not ready time.
 - Optional excuse: a miss is not counted when the pull request closed within

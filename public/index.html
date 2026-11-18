@@ -58,7 +58,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); height: 28px; ma
 .row { display: grid; grid-template-columns: 270px minmax(110px, 1fr) 56px 176px 80px 100px; gap: 14px; align-items: center; padding: 10px 0; border-top: 1px solid var(--rule); min-width: 0; }
 .row.head { border-top: 0; padding: 0 0 8px; font: 500 11px/1.3 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); align-items: end; }
 .row .r { text-align: right; }
-.who { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.who { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; min-width: 0; }
 .who a { font: 500 15px var(--mono); color: var(--ink); text-decoration: none; overflow-wrap: anywhere; }
 .who a:hover { text-decoration: underline; }
 .role { font: 500 10px var(--mono); letter-spacing: 0.06em; color: var(--ink-3); border: 1px solid var(--rule); border-radius: 3px; padding: 1px 5px; }
@@ -274,6 +274,7 @@ details.explain summary { cursor: pointer; font: 600 14px var(--font); color: va
       <div class="checks">
         <label><input type="checkbox" id="opt-comment" checked> A comment counts as taking part, not only a review</label>
         <label><input type="checkbox" id="opt-excuse" checked> Excuse a miss when the pull request closed within a week or two others approved within a week</label>
+        <label><input type="checkbox" id="opt-declined" checked> A request the person withdrew themselves counts as unanswered when one of this area's Maintainers is the assignee</label>
         <label><input type="checkbox" id="opt-own"> Leave out pull requests that also carry an area the person maintains</label>
       </div>
       <div class="field"><label for="skip-author">Leave out pull requests by</label><select id="skip-author"></select></div>
@@ -344,9 +345,10 @@ details.explain summary { cursor: pointer; font: 600 14px var(--font); color: va
     <li>An area is a section of MAINTAINERS.yml; its pull requests are those carrying the area's own label. Areas that share a label share their pull requests.</li>
     <li>Review requests come from the project's assigner (scripts/ci/set_assignees.py): when a pull request is out of draft it asks every Maintainer and Collaborator of every area the changed files belong to, without a cap. Someone it cannot formally request, because they are not a repository collaborator, is asked with an @-mention in a comment; that counts as a request here. It does not ask someone who has reviewed already, so a listed person's review without a request counts as asked and answered.</li>
     <li>A request counts once per person and pull request, on the day of the first request. It counts as answered when the person reviews at or after the request and before the end of the period. A comment counts as an answer too, unless that is switched off.</li>
-    <li>Not counted for or against anyone: the person's own pull requests, requests withdrawn without an answer (shown as declined when the person withdrew it themselves, after which the assigner does not ask them again), pull requests closed with less than three ready days after the request, and open ones with less than seven ready days since the request. Draft time is not ready time.</li>
+    <li>Not counted for or against anyone: the person's own pull requests, requests withdrawn by someone else without an answer, pull requests closed with less than three ready days after the request, and open ones with less than seven ready days since the request. Draft time is not ready time.</li>
     <li>A miss is excused, and so not counted, when the pull request closed within seven days of the request or two other people had approved it within seven days, unless that is switched off.</li>
-    <li>Both choices, and one to leave out pull requests that also carry an area the person maintains, are check boxes under "One area", next to the period. "All areas" always counts with comments as answers and with the excuse rule, because its figures are worked out once for every area when the data is refreshed.</li>
+    <li>A request the person withdrew themselves is called declined; the assigner does not ask them again. It counts like a request left unanswered when the pull request is this area's, which the page takes to be the case when one of the area's Maintainers is the assignee: a listed person is expected to review the area's own pull requests. On other pull requests, where the area is only touched in passing, declining is not counted for or against anyone. This can be switched off.</li>
+    <li>These three choices, and one to leave out pull requests that also carry an area the person maintains, are check boxes under "One area", next to the period. "All areas" always counts with comments as answers, with the excuse rule and with declined requests on the area's own pull requests as unanswered, because its figures are worked out once for every area when the data is refreshed.</li>
     <li>People with fewer than five countable requests are not judged. The line never takes a Maintainer off.</li>
     <li>Approved counts the pull requests the person first approved in the period, asked or not. Bot accounts are left out everywhere.</li>
     <li>A regular reviewer is a listed person who answers at least half of five or more requests in the period. An occasional reviewer took part but is not regular; a silent one did not take part; with fewer than five requests there is too little to tell. A pull request is not covered when fewer than two regular reviewers are left besides its author. An area whose label is named after another area (a West project using "area: Tests", say) sees that area's pull requests, so its figures are not its own. The same holds for the areas MAINTAINERS.yml marks as meta (Documentation, Tests, Samples, Release, Benchmarks): the assigner applies their label and asks their people on any pull request that touches their files, and itself never counts them as short of reviewers. Both kinds are hidden under "All areas" unless asked for.</li>
@@ -381,7 +383,7 @@ const state = {
   area: params.get("area") || "Bluetooth Host",
   from: params.get("from"), to: params.get("to"), days: +(params.get("days") || 90),
   line: params.has("line") ? +params.get("line") : 10,
-  comment: params.get("comment") !== "0", excuse: params.get("excuse") !== "0",
+  comment: params.get("comment") !== "0", excuse: params.get("excuse") !== "0", declined: params.get("declined") !== "0",
   own: params.get("own") === "1", skip: params.get("skip") || "",
 };
 
@@ -401,6 +403,7 @@ function remember() {
   p.set("line", state.line);
   if (!state.comment) p.set("comment", "0");
   if (!state.excuse) p.set("excuse", "0");
+  if (!state.declined) p.set("declined", "0");
   if (state.own) p.set("own", "1");
   if (state.skip) p.set("skip", state.skip);
   history.replaceState(null, "", "?" + p.toString());
@@ -438,12 +441,15 @@ function judge(ask, F, T, skipIdx) {
   if (state.own && (flags & 16)) return null;
   if (reviewed && reviewed < T) return "review";
   if (state.comment && commented && commented < T) return "comment";
-  if (flags & 32) return "declined";
-  if (flags & 1) return "withdrawn";
+  /* a request the person withdrew themselves on a pull request of this area (one of its Maintainers
+     is the assignee) is judged as if it had been left unanswered */
+  const refused = (flags & 32) && state.declined && AREA.prs[row][12];
+  if ((flags & 32) && !refused) return "declined";
+  if ((flags & 1) && !refused) return "withdrawn";
   if (flags & 2) return "closedEarly";
   if ((flags & 4) || (T - asked < 7 * DAY && !AREA.prs[row][5])) return "pending";
   if (state.excuse && (flags & 8)) return "excused";
-  return "miss";
+  return refused ? "refused" : "miss";
 }
 
 const merged0 = (P, F, T) => P.filter((p) => p[4] >= F && p[4] < T);
@@ -471,14 +477,14 @@ function render() {
 
   /* per person */
   const stat = new Map();
-  const get = (i) => { if (!stat.has(i)) stat.set(i, { req: 0, num: 0, approved: 0, reviewed: 0, last: 0, review: 0, comment: 0, miss: 0, excused: 0, withdrawn: 0, declined: 0, closedEarly: 0, pending: 0, unasked: 0, mentioned: 0 }); return stat.get(i); };
+  const get = (i) => { if (!stat.has(i)) stat.set(i, { req: 0, num: 0, approved: 0, reviewed: 0, last: 0, review: 0, comment: 0, miss: 0, excused: 0, withdrawn: 0, declined: 0, refused: 0, closedEarly: 0, pending: 0, unasked: 0, mentioned: 0 }); return stat.get(i); };
   const perPr = new Map();
   for (const a of AREA.asks) {
     const kind = judge(a, F, T, skipIdx);
     if (kind == null) continue;
     const s = get(a[0]); s[kind]++;
-    if (!["review", "comment", "miss"].includes(kind)) continue;
-    const c = kind === "miss" ? 0 : 1;
+    if (!["review", "comment", "miss", "refused"].includes(kind)) continue;
+    const c = kind === "miss" || kind === "refused" ? 0 : 1;
     s.req++; s.num += c;
     if (a[5] & 64) s.unasked++;
     if (a[5] & 128) s.mentioned++;
@@ -509,18 +515,19 @@ function render() {
     bar.appendChild(fill); bar.appendChild(mark); bar.setAttribute("role", "img"); bar.setAttribute("aria-label", p.w + " answered " + pc(p.rate) + " of requests");
     p.tier = few ? "unrated" : (p.rate >= 0.5 ? "regular" : (p.s.num || p.s.reviewed ? "occasional" : "silent"));
     who.appendChild(el("span", "tier", { regular: "REGULAR", occasional: "OCCASIONAL", silent: "SILENT", unrated: "TOO FEW REQUESTS" }[p.tier]));
+    if (p.s.declined + p.s.refused) who.appendChild(el("span", "tier", "DECLINED " + (p.s.declined + p.s.refused)));
     row.appendChild(bar); row.appendChild(el("div", "rate", few ? "–" : pc(p.rate)));
     const meta = el("div", "meta");
     const cell = (label, text) => { const c = el("div", "cell"); c.appendChild(el("small", null, label)); c.appendChild(document.createTextNode(text)); meta.appendChild(c); };
     cell("answered", p.s.num + " of " + p.s.req + " · " + f1(p.s.num / weeks) + "/wk");
     cell("approved", String(p.s.approved));
     cell("last review", p.s.last ? iso(p.s.last) : "never");
-    if (p.s.declined) cell("declined", String(p.s.declined));
     row.appendChild(meta); box.appendChild(row);
     attachTip(row, p.w, () => {
       const st = p.s, skipped = st.excused + st.withdrawn + st.declined + st.closedEarly + st.pending;
-      const lines = [["", "Asked on " + st.req + " pull requests that count: " + st.review + " answered with a review, " + st.comment + " with a comment only, " + st.miss + " not answered."]];
-      if (skipped) lines.push(["Not counted", [[st.excused, "excused (closed, or approved by two others, within a week)"], [st.declined, "declined (withdrew the request themselves)"], [st.withdrawn, "withdrawn by someone else"], [st.pending, "still pending"], [st.closedEarly, "closed too soon"]].filter(([n]) => n).map(([n, t]) => n + " " + t).join("; ")]);
+      const lines = [["", "Asked on " + st.req + " pull requests that count: " + st.review + " answered with a review, " + st.comment + " with a comment only, " + (st.miss + st.refused) + " not answered."]];
+      if (st.refused) lines.push(["", "On " + st.refused + " of those the person withdrew the request themselves although the pull request is this area's: one of its Maintainers is the assignee."]);
+      if (skipped) lines.push(["Not counted", [[st.excused, "excused (closed, or approved by two others, within a week)"], [st.declined, "declined (withdrew the request themselves, on a pull request that is not clearly this area's)"], [st.withdrawn, "withdrawn by someone else"], [st.pending, "still pending"], [st.closedEarly, "closed too soon"]].filter(([n]) => n).map(([n, t]) => n + " " + t).join("; ")]);
       if (st.unasked) lines.push(["", st.unasked + " of these had no request: the assigner does not ask someone who has reviewed already, so the review counts as asked and answered."]);
       if (st.mentioned) lines.push(["", "On " + st.mentioned + " the request was an @-mention by the assigner, which cannot formally request a review from someone who is not a repository collaborator."]);
       lines.push(["", "Reviewed " + st.reviewed + " pull requests here in the period, asked or not, and approved " + st.approved + "."]);
@@ -1085,7 +1092,7 @@ async function start() {
   $("area").addEventListener("change", () => { state.skip = ""; loadArea($("area").value); });
   const custom = () => { if ($("from").value && $("to").value && $("from").value <= $("to").value) { state.days = 0; state.from = $("from").value; state.to = $("to").value; render(); } };
   $("from").addEventListener("change", custom); $("to").addEventListener("change", custom);
-  [["opt-comment", "comment"], ["opt-excuse", "excuse"], ["opt-own", "own"]].forEach(([id, key]) => { $(id).checked = state[key]; $(id).addEventListener("change", () => { state[key] = $(id).checked; render(); }); });
+  [["opt-comment", "comment"], ["opt-excuse", "excuse"], ["opt-declined", "declined"], ["opt-own", "own"]].forEach(([id, key]) => { $(id).checked = state[key]; $(id).addEventListener("change", () => { state[key] = $(id).checked; render(); }); });
   $("skip-author").addEventListener("change", () => { state.skip = $("skip-author").value; render(); });
   $("line").addEventListener("input", () => { state.line = +$("line").value; render(); });
   if (!state.days && !(state.from && state.to)) state.days = 90;
