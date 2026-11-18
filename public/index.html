@@ -370,7 +370,7 @@ const median = (v) => { if (!v.length) return null; v = v.slice().sort((a, b) =>
 const profile = (login) => { const a = el("a", null, login); a.href = "https://github.com/" + login; a.target = "_blank"; a.rel = "noopener"; return a; };
 const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
-const FORMAT = 5;  /* must match FORMAT in build.py */
+const FORMAT = 6;  /* must match FORMAT in build.py */
 let INDEX = null, AREA = null, SUMMARY = null, VERSION = "";
 const params = new URLSearchParams(location.search);
 const state = {
@@ -1091,9 +1091,9 @@ async function start() {
   if (!INDEX.complete || INDEX.oldest) {
     const c = $("coverage");
     const oldest = (INDEX.oldest || "").slice(0, 10);
-    if (!INDEX.complete && INDEX.format === FORMAT) { c.textContent = "The history is still being filled in. So far it holds the pull requests updated since " + oldest + "; periods that start earlier are incomplete."; c.hidden = false; }
+    if (!INDEX.history && INDEX.format === FORMAT) { c.textContent = "The history is still being filled in. So far it holds the pull requests updated since " + oldest + "; periods that start earlier are incomplete."; c.hidden = false; }
     else { $("stamp").textContent += " · updated since " + oldest; }
-    if (INDEX.format === FORMAT && INDEX.complete && INDEX.assignee_known < 0.98) { c.textContent = "Assignees are still being collected (" + pc(INDEX.assignee_known) + " of the pull requests so far), so the figures about waiting for the assignee are incomplete."; c.hidden = false; }
+    if (INDEX.format === FORMAT && INDEX.history && INDEX.current < 0.98) { c.textContent = "The history is complete back to " + oldest + ". One addition is still being collected: " + (INDEX.adds || "details the page started to use recently") + " (" + pc(INDEX.current) + " of the pull requests so far). Figures that rest on these are incomplete until then; all others are complete."; c.hidden = false; }
   }
   [30, 90, 180, 365].forEach((d) => { const b = el("button", null, "Last " + d + " days"); b.type = "button"; b.dataset.days = d; b.addEventListener("click", () => { state.days = d; renderAll(); }); $("all-presets").appendChild(b); });
   [["", "All"], ["none", "No regular"], ["single", "One regular"], ["thin", "Thin"], ["covered", "Covered"]].forEach(([st, label]) => { const b = el("button", null, label); b.type = "button"; b.dataset.status = st; b.addEventListener("click", () => { state.status = st; renderAll(); }); $("statuses").appendChild(b); });

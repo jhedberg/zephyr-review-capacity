@@ -203,7 +203,7 @@ def build_area(name: str, area: dict, prs: list[PR], maintains: dict, now: int,
 
 # Version of the data files' layout. The page carries the same number and
 # refuses to mix a page of one version with data of another.
-FORMAT = 5
+FORMAT = 6
 WINDOWS = (30, 90, 180, 365)
 WAITING = 14 * DAY
 REGULAR = 0.5      # a regular reviewer answers at least this share of requests
@@ -467,9 +467,20 @@ def main() -> None:
                         "collaborators": len(data["collaborators"]),
                         "shares_label": 1 if borrows(name, label) else 0,
                         **summarize(data, now)})
+    # Two different things can be unfinished: the walk back to the start of
+    # the history window, and, after a change of the record layout, the
+    # refresh of records that already cover the whole window.
+    state = cache["state"]
+    oldest = state.get("oldest")
+    reach = now - (state.get("history_days", WINDOWS[-1]) - 2) * DAY
+    history = bool(state.get("complete")) or bool(
+        oldest and dt.datetime.fromisoformat(oldest.replace("Z", "+00:00")).timestamp() // 60 <= reach)
+    current = sum(1 for r in cache["prs"].values() if r.get("v") == state.get("schema"))
     (args.out / "index.json").write_text(json.dumps({
         "format": FORMAT, "repo": args.repo, "generated": fetched, "now": now,
-        "oldest": cache["state"].get("oldest"), "complete": cache["state"].get("complete"),
+        "oldest": oldest, "complete": state.get("complete"),
+        "history": history, "current": round(current / max(len(cache["prs"]), 1), 3),
+        "adds": state.get("adds", ""),
         "pull_requests": len(prs), "truncated": sum(1 for r in cache["prs"].values() if r.get("x")),
         "standing_known": round(sum(1 for r in cache["prs"].values() if r.get("v", 1) >= 2)
                                 / max(len(cache["prs"]), 1), 3),

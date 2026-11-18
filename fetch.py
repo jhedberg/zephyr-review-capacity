@@ -92,6 +92,8 @@ REVIEW_STATE = {"APPROVED": "A", "CHANGES_REQUESTED": "R", "COMMENTED": "C",
 ASSOCIATION = {"MEMBER": "M", "OWNER": "M", "COLLABORATOR": "C"}
 # Version of the cached record; older records are fetched again.
 SCHEMA = 4
+# what records of this version hold that older ones lack, for the page's notice
+SCHEMA_ADDS = "assignees, who withdrew a review request, and requests made by an @-mention"
 # scripts/ci/set_assignees.py in the Zephyr tree marks its comment with this
 MENTION_MARKER = "set_assignees: reviewer-mention"
 MENTION = re.compile(r"@([A-Za-z0-9][A-Za-z0-9-]*)")
@@ -307,6 +309,8 @@ def main() -> None:
     for number in [k for k, v in prs.items() if v["u"] < cutoff]:
         del prs[number]
     state["fetched_at"] = now.isoformat()
+    state["history_days"] = args.history_days
+    state["adds"] = SCHEMA_ADDS
     state["oldest"] = min((v["u"] for v in prs.values()), default=None)
     save(args.cache, cache)
     print(f"refreshed {refreshed}, cached {len(prs)}, oldest update {state['oldest']}, "
