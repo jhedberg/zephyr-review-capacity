@@ -32,8 +32,9 @@ project as a whole. Each area has a review cover in words (no regular
 reviewer, one, thin, covered), the make-up of its list, the pull requests
 arriving per week and per regular reviewer, the share of pull requests not
 covered, the share of merged pull requests whose two approvals both came from
-regular reviewers, the share nobody listed took part in, the time to the
-second approval, the pull requests waiting, and the number of candidates for
+regular reviewers, the share nobody listed took part in, the number of open pull
+requests with its change over the period and a small line of its course, the
+time to the second approval, the pull requests waiting, and the number of candidates for
 the list: people who are not listed but reviewed more of the area's pull
 requests than at least half of the listed people did. Sort by any column, filter by cover, or
 use "Show first"; a legend above the table defines each choice. The cover state
@@ -55,9 +56,10 @@ is counted and whose pull requests are short; where the two approvals of the
 merged pull requests actually came from; the most active reviewers who are not
 on the list as candidates for it, marked where GitHub shows them as public
 members of the organization; and the
-flow through the area (pull requests opened and merged, time to the first
-review, the second approval and the merge, and who brings review work against
-who gives it).
+flow through the area: the number of open pull requests over time, what came
+in and went out each week (opened, merged, closed without merging), the time
+to the first review, the second approval and the merge, and who brings review
+work against who gives it.
 
 Everything is counted in the browser from per-request records, so any date
 range and any combination of the counting options works without a new run.

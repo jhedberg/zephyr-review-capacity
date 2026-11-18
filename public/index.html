@@ -82,7 +82,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); height: 28px; ma
   .cell small { display: inline; }
 }
 @media (min-width: 821px) { .row .meta { display: contents; } }
-.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
 .tile { padding: 16px 16px 16px 0; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .tile .v { font: 500 30px/1.1 var(--mono); font-variant-numeric: tabular-nums; }
 .tile .l { font-size: 14px; color: var(--ink-2); }
@@ -206,6 +206,7 @@ details.explain summary { cursor: pointer; font: 600 14px var(--font); color: va
             <div><dt>By cover state</dt><dd>Groups the areas by the four states on the left, the weakest state first, and the busiest area first within a state.</dd></div>
             <div><dt>Largest share not covered</dt><dd>Orders by a number: the percentage of pull requests with fewer than two regular reviewers besides the author. Two areas in the same state can be far apart here, such as 45% and 100%.</dd></div>
             <div><dt>Most per regular reviewer</dt><dd>Pull requests arriving each week, divided by the regular reviewers. Areas with none come first.</dd></div>
+            <div><dt>Fastest growing queue</dt><dd>The change in the number of open pull requests over the period: opened, minus merged, minus closed without merging.</dd></div>
             <div><dt>Slowest second approval</dt><dd>Median days from ready for review to the second approval.</dd></div>
             <div><dt>Most waiting</dt><dd>Open, ready pull requests with no review after two weeks.</dd></div>
             <div><dt>Most candidates</dt><dd>Areas with the most candidates, as defined under Terms.</dd></div>
@@ -215,7 +216,7 @@ details.explain summary { cursor: pointer; font: 600 14px var(--font); color: va
           <h4>Colours</h4>
           <dl>
             <div><dt>On the cover state</dt><dd>Red means no or one regular reviewer, green means covered, grey means thin. These are fixed meanings.</dd></div>
-            <div><dt><span class="mark-worst">Worst tenth</span> and <span class="mark-best">best tenth</span></dt><dd>In "PRs/week per regular", "2nd approval" and "Waiting", the marks compare an area with the other areas in scope. A mark is left out when too many areas share the value for a tenth to mean anything.</dd></div>
+            <div><dt><span class="mark-worst">Worst tenth</span> and <span class="mark-best">best tenth</span></dt><dd>In "PRs/week per regular", "Open now (change)", "2nd approval" and "Waiting", the marks compare an area with the other areas in scope. A mark is left out when too many areas share the value for a tenth to mean anything.</dd></div>
             <div><dt>No colour elsewhere</dt><dd>In the percentage columns most areas sit at 0% or 100%, so a best or worst tenth would be arbitrary there.</dd></div>
           </dl>
         </div>
@@ -291,9 +292,13 @@ details.explain summary { cursor: pointer; font: 600 14px var(--font); color: va
   <h2>Flow through the area</h2>
   <div class="tiles" id="tiles"></div>
   <div class="panel">
-    <div class="chart-head"><h3>Opened and merged per week</h3>
-      <div class="legend"><span><i style="background:var(--accent)"></i>Opened</span><span><i style="background:var(--series-2)"></i>Merged</span></div></div>
+    <h3>Open pull requests over time</h3>
+    <p class="verdict" id="open-text"></p>
+    <div class="chart" id="open-chart"></div>
+    <div class="chart-head"><h3>What came in and what went out, per week</h3>
+      <div class="legend"><span><i style="background:var(--accent)"></i>Opened</span><span><i style="background:var(--series-2)"></i>Merged</span><span><i style="background:var(--below)"></i>Closed without merging</span></div></div>
     <div class="chart" id="chart"></div>
+    <p class="note">The open count includes drafts. It rises in a week when more pull requests are opened than are merged or closed. A pull request that is still open but was not touched for a year is missing from the count.</p>
   </div>
   <div class="panel">
     <h3>Who brings review work and who gives it</h3>
@@ -572,20 +577,31 @@ function render() {
 
   /* flow */
   const opened = P.filter((p) => p[2] >= F && p[2] < T), merged = P.filter((p) => p[4] >= F && p[4] < T);
+  const dropped = P.filter((p) => p[5] >= F && p[5] < T && !p[4]);
+  const openAt = (t) => P.reduce((n, p) => n + (p[2] <= t && (!p[5] || p[5] > t) ? 1 : 0), 0);
+  const END = Math.min(T, INDEX.now);
+  const openStart = openAt(F), openEnd = openAt(END), net = opened.length - merged.length - dropped.length;
   const toReview = P.filter((p) => p[3] >= F && p[3] < T && p[6]).map((p) => Math.max(0, p[6] - p[3]) / DAY);
   const toMerge = merged.filter((p) => p[3]).map((p) => Math.max(0, p[4] - p[3]) / DAY);
   const toSecond = P.filter((p) => p[3] >= F && p[3] < T && p[7]).map((p) => Math.max(0, p[7] - p[3]) / DAY);
   const tiles = $("tiles"); tiles.textContent = "";
-  [[f1(opened.length / weeks), "opened a week", opened.length + " in the period"],
+  [[String(openEnd), "open at the end of the period", openStart + " at its start"],
+   [(net > 0 ? "+" : "") + f1(net / weeks), "change in open ones a week", (net > 0 ? "+" : "") + net + " over the period"],
+   [f1(opened.length / weeks), "opened a week", opened.length + " in the period"],
    [f1(merged.length / weeks), "merged a week", merged.length + " in the period"],
+   [f1(dropped.length / weeks), "closed without merging a week", dropped.length + " in the period"],
    [toReview.length ? f1(median(toReview)) + " d" : "n/a", "ready to first review, median", toReview.length + " pull requests"],
    [toSecond.length ? f1(median(toSecond)) + " d" : "n/a", "ready to second approval, median", toSecond.length + " pull requests"],
    [toMerge.length ? f1(median(toMerge)) + " d" : "n/a", "ready to merged, median", toMerge.length + " pull requests"]]
     .forEach(([val, label, sub]) => { const t = el("div", "tile"); t.appendChild(el("div", "v", val)); t.appendChild(el("div", "l", label)); t.appendChild(el("div", "s", sub)); tiles.appendChild(t); });
   const buckets = [];
-  for (let t = F; t < T; t += 7 * DAY) buckets.push({ start: t, opened: 0, merged: 0 });
+  for (let t = F; t < T; t += 7 * DAY) buckets.push({ start: t, opened: 0, merged: 0, closed: 0, open: openAt(Math.min(t + 7 * DAY, END)) });
   const slot = (t) => buckets[Math.floor((t - F) / (7 * DAY))];
-  opened.forEach((p) => slot(p[2]).opened++); merged.forEach((p) => slot(p[4]).merged++);
+  opened.forEach((p) => slot(p[2]).opened++); merged.forEach((p) => slot(p[4]).merged++); dropped.forEach((p) => slot(p[5]).closed++);
+  const ot = $("open-text");
+  ot.textContent = openStart === openEnd ? "The number of open pull requests is where it started, at " + openEnd + "."
+    : "Open pull requests went from " + openStart + " to " + openEnd + " over the period (" + (net > 0 ? "+" : "") + net + "): " + opened.length + " were opened, " + merged.length + " merged and " + dropped.length + " closed without merging.";
+  drawOpen(buckets, openStart);
   drawChart(buckets);
 
   /* who brings and who gives */
@@ -627,10 +643,11 @@ const COLS = [
   { key: "regAlone", label: "Regulars alone", first: 1, fmt: pc },
   { key: "noListed", label: "No listed reviewer", first: -1, fmt: pc },
   { key: "second", label: "2nd approval (d)", first: -1, fmt: f1 },
+  { key: "openChange", label: "Open now (change)", first: -1, fmt: (v, r) => r.openNow + " (" + (v > 0 ? "+" : "") + v + ")", plain: (v) => (v > 0 ? "+" : "") + f1(v) },
   { key: "waiting", label: "Waiting >2 wk", first: -1, fmt: (v) => v },
   { key: "candidates", label: "Candidates", first: -1, fmt: (v) => v },
 ];
-const SORTS = [["rank", 1, "By cover state"], ["notCovered", -1, "Largest share not covered"], ["perRegular", -1, "Most per regular reviewer"], ["second", -1, "Slowest second approval"], ["waiting", -1, "Most waiting"], ["candidates", -1, "Most candidates"]];
+const SORTS = [["rank", 1, "By cover state"], ["notCovered", -1, "Largest share not covered"], ["perRegular", -1, "Most per regular reviewer"], ["openChange", -1, "Fastest growing queue"], ["second", -1, "Slowest second approval"], ["waiting", -1, "Most waiting"], ["candidates", -1, "Most candidates"]];
 
 function areaRows() {
   const days = state.days || 90, weeks = days / 7;
@@ -644,6 +661,8 @@ function areaRows() {
       regAlone: merged >= 5 ? w.outcome[0] / merged : null,
       noListed: w.asked_prs >= 5 ? w.silent_prs / w.asked_prs : null,
       second: w.second_approval, waiting: a.waiting, candidates: w.candidate_count, w, days,
+      openNow: a.open[a.open.length - 1], openChange: a.open[a.open.length - 1] - w.open_start,
+      trend: a.open.slice(-(Math.round(days / 7) + 1)),
     };
   });
 }
@@ -681,7 +700,7 @@ function renderAll() {
 
   /* best and worst tenth of the areas in scope, in the columns with a real spread */
   const marks = {};
-  for (const key of ["perRegular", "second", "waiting"]) {
+  for (const key of ["perRegular", "second", "waiting", "openChange"]) {
     const v = inScope.map((r) => r[key]).filter((x) => x != null && x !== Infinity).sort((a, b) => a - b);
     if (v.length < 20) continue;
     const lo = v[Math.floor(v.length * 0.1)], hi = v[Math.ceil(v.length * 0.9) - 1];
@@ -711,12 +730,23 @@ function renderAll() {
       const cell = el("td", c.key === "rank" ? "status" : "n" + mark, c.key === "rank" || x == null ? (x == null ? "n/a" : "") : String(c.fmt(x, r)));
       if (c.key === "rank") cell.appendChild(el("span", "state " + r.status, STATUS[r.status]));
       if (mark) cell.dataset.mark = mark.trim();
+      if (c.key === "openChange") cell.insertBefore(spark(r.trend), cell.firstChild);
       attachDetail(cell, c.key, r);
       tr.appendChild(cell);
     }
     tb.appendChild(tr);
   }
   table.appendChild(tb);
+}
+
+/* a small line of the open count over the period */
+function spark(values) {
+  const W = 46, H = 18, max = Math.max(1, ...values), min = Math.min(...values), span = Math.max(1, max - min);
+  const s = svg("svg", { viewBox: "0 0 " + W + " " + H, width: W, height: H, "aria-hidden": "true", style: "vertical-align:middle;margin-right:6px;overflow:visible" });
+  const x = (i) => 1 + (W - 2) * i / (values.length - 1 || 1), y = (v) => H - 2 - (H - 4) * (v - min) / span;
+  svg("path", { d: values.map((v, i) => (i ? "L" : "M") + x(i).toFixed(1) + " " + y(v).toFixed(1)).join(""), fill: "none", stroke: css("--accent"), "stroke-width": 1.5, "stroke-linejoin": "round" }, s);
+  svg("circle", { cx: x(values.length - 1), cy: y(values[values.length - 1]), r: 2, fill: css("--accent") }, s);
+  return s;
 }
 
 /* the names and counts behind a figure, on hover, focus or tap */
@@ -737,6 +767,7 @@ function detailLines(key, r) {
     case "regAlone": return [["", "The two approvals of the " + merged + " merged pull requests came from:"], ["Regular reviewers alone", String(w.outcome[0])], ["With an occasional listed reviewer", String(w.outcome[1])], ["With someone not listed", String(w.outcome[2])]].concat(w.outcome[3] ? [["Fewer than two on record", String(w.outcome[3])]] : []);
     case "noListed": return [["", w.silent_prs + " of the " + w.asked_prs + " pull requests that asked the list got no review or comment from anyone listed."]];
     case "second": return [["", w.second_approval == null ? "No pull request got a second approval." : "Median of " + w.second_n + " pull requests, from ready for review to the second approval." + (w.first_review != null ? " The first review took " + f1(w.first_review) + " days." : "")]];
+    case "openChange": return [["", r.openNow + " open now, " + w.open_start + " at the start of the " + r.days + " days."], ["Opened", String(w.opened)], ["Merged", String(w.merged)], ["Closed without merging", String(w.closed)], ["", "The small line shows the open count week by week; drafts are included."]];
     case "waiting": return [["", r.waiting + " open pull requests are ready for review and have had no review for two weeks or more. This figure is as of now, not for the period."]];
     case "candidates": {
       const listed = r.listed, line = ([who, n, ahead]) => [who, n + " reviewed" + (listed ? ", more than " + ahead + " of the " + listed + " listed" : "")];
@@ -786,9 +817,10 @@ function drawStrip(rows, col) {
   const hasInf = pts.some((r) => r[col.key] === Infinity);
   const W = host.clientWidth || 600, H = 74, l = 8, r = hasInf ? 110 : 16;
   const s = svg("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "Spread of the areas shown" }, host);
-  const x = (v) => l + (W - l - r) * Math.min(v, cap) / cap;
+  const lo = isShare ? 0 : Math.min(0, finite.length ? finite[0] : 0), plain = col.plain || col.fmt;
+  const x = (v) => l + (W - l - r) * (Math.min(v, cap) - lo) / ((cap - lo) || 1);
   svg("line", { x1: l, x2: W - r, y1: 46, y2: 46, stroke: css("--rule"), "stroke-width": 1 }, s);
-  [0, 0.25, 0.5, 0.75, 1].forEach((f) => { const t = svg("text", { x: l + (W - l - r) * f, y: 64, "text-anchor": f === 0 ? "start" : (f === 1 ? "end" : "middle") }, s); t.textContent = isShare ? pc(f) : f1(cap * f) + (f === 1 && !isShare ? "+" : ""); });
+  [0, 0.25, 0.5, 0.75, 1].forEach((f) => { const t = svg("text", { x: l + (W - l - r) * f, y: 64, "text-anchor": f === 0 ? "start" : (f === 1 ? "end" : "middle") }, s); t.textContent = isShare ? pc(f) : f1(lo + (cap - lo) * f) + (f === 1 ? "+" : ""); });
   if (hasInf) svg("text", { x: W - r + 14, y: 64 }, s).textContent = "no regular";
   const tip = $("tip");
   let inf = 0;
@@ -805,7 +837,7 @@ function drawStrip(rows, col) {
     t.addEventListener("pointermove", show); t.addEventListener("focus", show); t.addEventListener("pointerleave", hide); t.addEventListener("blur", hide);
     t.addEventListener("click", () => { state.view = "area"; state.skip = ""; showView(); loadArea(p.name); window.scrollTo(0, 0); });
   }
-  if (finite.length) { const m = median(finite); svg("line", { x1: x(m), x2: x(m), y1: 8, y2: 50, stroke: css("--ink"), "stroke-width": 1.5 }, s); svg("text", { x: Math.min(Math.max(x(m), 50), W - 50), y: 8, "text-anchor": "middle" }, s).textContent = "median " + col.fmt(m); }
+  if (finite.length) { const m = median(finite); svg("line", { x1: x(m), x2: x(m), y1: 8, y2: 50, stroke: css("--ink"), "stroke-width": 1.5 }, s); svg("text", { x: Math.min(Math.max(x(m), 50), W - 50), y: 8, "text-anchor": "middle" }, s).textContent = "median " + plain(m); }
 }
 
 function showView() {
@@ -819,28 +851,62 @@ function showView() {
 const NS = "http://www.w3.org/2000/svg";
 const svg = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
 let lastBuckets = [];
+function niceMax(peak) {
+  const steps = [4, 8, 12, 20, 40, 60, 80, 120, 160, 200, 400, 800, 1200, 2000];
+  return steps.find((x) => x >= peak) || Math.ceil(peak / 1000) * 1000;
+}
+let lastOpenStart = 0;
+function drawOpen(buckets, openStart) {
+  lastOpenStart = openStart;
+  const host = $("open-chart"); host.textContent = "";
+  if (!buckets.length) return;
+  const W = host.clientWidth || 600, H = Math.max(180, Math.min(240, W * 0.3)), m = { l: 34, r: 56, t: 12, b: 24 };
+  const s = svg("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "Open pull requests at the end of each week" }, host);
+  const values = [openStart].concat(buckets.map((b) => b.open));
+  const max = niceMax(Math.max(1, ...values));
+  const x = (i) => m.l + (W - m.l - m.r) * i / (values.length - 1 || 1), y = (v) => H - m.b - (H - m.t - m.b) * v / max;
+  for (let g = 0; g <= 4; g++) { const gv = max * g / 4; svg("line", { x1: m.l, x2: W - m.r, y1: y(gv), y2: y(gv), stroke: css("--rule"), "stroke-width": 1 }, s); svg("text", { x: m.l - 6, y: y(gv) + 4, "text-anchor": "end" }, s).textContent = gv; }
+  const every = Math.ceil(buckets.length / Math.max(3, Math.floor((W - m.l) / 70)));
+  buckets.forEach((b, i) => { if (i % every === 0) svg("text", { x: x(i), y: H - 6, "text-anchor": "middle" }, s).textContent = iso(b.start).slice(5); });
+  svg("path", { d: values.map((v, i) => (i ? "L" : "M") + x(i).toFixed(1) + " " + y(v).toFixed(1)).join(""), fill: "none", stroke: css("--accent"), "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, s);
+  const n = values.length - 1;
+  svg("circle", { cx: x(n), cy: y(values[n]), r: 4, fill: css("--accent"), stroke: css("--surface"), "stroke-width": 2 }, s);
+  const end = svg("text", { x: x(n) + 9, y: y(values[n]) + 4 }, s); end.textContent = values[n] + " open"; end.setAttribute("style", "font-weight:500;fill:" + css("--ink"));
+  const tip = $("tip"), hair = svg("line", { y1: m.t, y2: H - m.b, stroke: css("--ink-3"), "stroke-width": 1, visibility: "hidden" }, s);
+  const hit = svg("rect", { x: m.l, y: 0, width: W - m.l - m.r, height: H, fill: "transparent" }, s);
+  const move = (ev) => { const r = s.getBoundingClientRect(), hr = host.getBoundingClientRect(), px = (ev.clientX - r.left) * W / r.width;
+    const i = Math.max(0, Math.min(n, Math.round((px - m.l) / (W - m.l - m.r) * n)));
+    hair.setAttribute("x1", x(i)); hair.setAttribute("x2", x(i)); hair.setAttribute("visibility", "visible");
+    tip.className = "tip"; tip.textContent = (i ? "End of the week of " + iso(buckets[i - 1].start) : "Start of the period") + ": " + values[i] + " open"; tip.hidden = false;
+    let left = hr.left + window.scrollX + x(i) * r.width / W + 12;
+    if (left + tip.offsetWidth > window.scrollX + document.documentElement.clientWidth - 8) left -= tip.offsetWidth + 24;
+    tip.style.left = Math.max(8, left) + "px"; tip.style.top = (hr.top + window.scrollY + 8) + "px"; };
+  hit.addEventListener("pointermove", move); hit.addEventListener("pointerdown", move);
+  hit.addEventListener("pointerleave", () => { hair.setAttribute("visibility", "hidden"); tip.hidden = true; });
+}
 function drawChart(buckets) {
   lastBuckets = buckets;
   const host = $("chart"); host.textContent = "";
   const W = host.clientWidth || 600, H = Math.max(200, Math.min(280, W * 0.38)), m = { l: 34, r: 8, t: 12, b: 24 };
-  const s = svg("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "Pull requests opened and merged per week" }, host);
-  const peak = Math.max(1, ...buckets.map((b) => Math.max(b.opened, b.merged)));
-  const steps = [4, 8, 12, 20, 40, 60, 80, 120, 160, 200, 400, 800];
-  const max = steps.find((x) => x >= peak) || Math.ceil(peak / 400) * 400;
+  const s = svg("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "Pull requests opened, merged and closed without merging per week" }, host);
+  const max = niceMax(Math.max(1, ...buckets.map((b) => Math.max(b.opened, b.merged + b.closed))));
   const band = (W - m.l - m.r) / Math.max(buckets.length, 1), bw = Math.min(24, Math.max(2, (band - 6) / 2));
   const y = (val) => H - m.b - (H - m.t - m.b) * val / max;
   for (let g = 0; g <= 4; g++) { const gv = max * g / 4; svg("line", { x1: m.l, x2: W - m.r, y1: y(gv), y2: y(gv), stroke: css("--rule"), "stroke-width": 1 }, s); svg("text", { x: m.l - 6, y: y(gv) + 4, "text-anchor": "end" }, s).textContent = gv; }
-  const bar = (x, val, color) => { if (val <= 0) return; const top = y(val), base = H - m.b, r = Math.min(4, bw / 2, base - top);
-    svg("path", { d: `M${x} ${base}V${top + r}Q${x} ${top} ${x + r} ${top}H${x + bw - r}Q${x + bw} ${top} ${x + bw} ${top + r}V${base}Z`, fill: css(color) }, s); };
+  /* a column from `from` to `to`, rounded at the top only when it is the top of its stack */
+  const bar = (x, from, to, color, top) => { if (to <= from) return; const y0 = y(from), y1 = y(to), r = top ? Math.min(4, bw / 2, y0 - y1) : 0;
+    svg("path", { d: `M${x} ${y0}V${y1 + r}Q${x} ${y1} ${x + r} ${y1}H${x + bw - r}Q${x + bw} ${y1} ${x + bw} ${y1 + r}V${y0}Z`, fill: css(color) }, s); };
   const every = Math.ceil(buckets.length / Math.max(3, Math.floor((W - m.l) / 70)));
   const tip = $("tip");
   buckets.forEach((b, i) => {
-    const cx = m.l + band * (i + 0.5);
-    bar(cx - bw - 1, b.opened, "--accent"); bar(cx + 1, b.merged, "--series-2");
+    const cx = m.l + band * (i + 0.5), gap = b.merged && b.closed ? max * 2 / (H - m.t - m.b) : 0;
+    bar(cx - bw - 1, 0, b.opened, "--accent", true);
+    bar(cx + 1, 0, b.merged, "--series-2", !b.closed);
+    bar(cx + 1, b.merged + gap, b.merged + gap + b.closed, "--below", true);
     if (i % every === 0) svg("text", { x: cx, y: H - 6, "text-anchor": "middle" }, s).textContent = iso(b.start).slice(5);
     const hit = svg("rect", { x: m.l + band * i, y: 0, width: band, height: H - m.b, fill: "transparent", tabindex: 0 }, s);
     const show = () => { const r = s.getBoundingClientRect(), hr = host.getBoundingClientRect();
-      tip.textContent = "Week of " + iso(b.start) + ": " + b.opened + " opened, " + b.merged + " merged"; tip.hidden = false;
+      tip.className = "tip"; tip.textContent = "Week of " + iso(b.start) + ": " + b.opened + " opened, " + b.merged + " merged, " + b.closed + " closed without merging"; tip.hidden = false;
       let left = hr.left + window.scrollX + cx * r.width / W + 12;
       if (left + tip.offsetWidth > window.scrollX + document.documentElement.clientWidth - 8) left -= tip.offsetWidth + 24;
       tip.style.left = Math.max(8, left) + "px"; tip.style.top = (hr.top + window.scrollY + 8) + "px"; };
@@ -883,8 +949,8 @@ async function start() {
   $("tab-area").addEventListener("click", () => { state.view = "area"; showView(); render(); });
   await loadArea(state.area);
   showView();
-  let timer; window.addEventListener("resize", () => { clearTimeout(timer); timer = setTimeout(() => { if (state.view === "all") renderAll(); else drawChart(lastBuckets); }, 150); });
-  if (window.matchMedia) window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => drawChart(lastBuckets));
+  let timer; window.addEventListener("resize", () => { clearTimeout(timer); timer = setTimeout(() => { if (state.view === "all") renderAll(); else { drawOpen(lastBuckets, lastOpenStart); drawChart(lastBuckets); } }, 150); });
+  if (window.matchMedia) window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { drawOpen(lastBuckets, lastOpenStart); drawChart(lastBuckets); });
 }
 start().catch((err) => { $("stamp").textContent = "Could not load the data: " + err.message; });
 </script>

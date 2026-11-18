@@ -221,7 +221,12 @@ def summarize(data: dict, now: int) -> dict:
     for who, row, _first, approved, _last in data["revs"]:
         if approved:
             approvers.setdefault(row, set()).add(who)
-    out = {"waiting": waiting, "w": {}}
+    # open pull requests at the end of each of the last 53 weeks, oldest first
+    weekly = []
+    for back in range(52, -1, -1):
+        at = now - back * 7 * DAY
+        weekly.append(sum(1 for p in prs if p[2] <= at and (not p[5] or p[5] > at)))
+    out = {"waiting": waiting, "open": weekly, "w": {}}
     for days in WINDOWS:
         start = now - days * DAY
         per_pr: dict[int, int] = {}
@@ -291,6 +296,10 @@ def summarize(data: dict, now: int) -> dict:
         candidates = [c for c in outside if 2 * c[2] >= len(roster)]
         out["w"][str(days)] = {
             "ready": len(ready),
+            "opened": sum(1 for p in prs if p[2] >= start),
+            "merged": sum(1 for p in prs if p[4] >= start),
+            "closed": sum(1 for p in prs if p[5] >= start and not p[4]),
+            "open_start": sum(1 for p in prs if p[2] <= start and (not p[5] or p[5] > start)),
             "tiers": [len(tiers["regular"]), len(tiers["occasional"]), len(tiers["silent"]),
                       len(tiers["unrated"])],
             "people": [tiers["regular"], tiers["occasional"], tiers["silent"], tiers["unrated"]],
