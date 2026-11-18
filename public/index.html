@@ -55,7 +55,7 @@ select, input[type="date"], input[type="search"] { font: 500 15px var(--font); c
 input[type="range"] { width: 100%; accent-color: var(--accent); height: 28px; margin: 0; }
 .verdict { font-size: 17px; max-width: 72ch; }
 .names { font-family: var(--mono); font-size: 15px; }
-.row { display: grid; grid-template-columns: 190px minmax(110px, 1fr) 56px 176px 80px 100px; gap: 14px; align-items: center; padding: 10px 0; border-top: 1px solid var(--rule); min-width: 0; }
+.row { display: grid; grid-template-columns: 270px minmax(110px, 1fr) 56px 176px 80px 100px; gap: 14px; align-items: center; padding: 10px 0; border-top: 1px solid var(--rule); min-width: 0; }
 .row.head { border-top: 0; padding: 0 0 8px; font: 500 11px/1.3 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); align-items: end; }
 .row .r { text-align: right; }
 .who { display: flex; align-items: center; gap: 8px; min-width: 0; }
@@ -119,8 +119,11 @@ ul.plain { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
 #overview td.area { min-width: 150px; }
 #overview td.area button { font: 500 14px var(--font); color: var(--accent-ink); background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
 #overview td.area button:hover { text-decoration: underline; }
-#overview td.bad { font-weight: 700; color: var(--ink); }
-#overview td.bad::before { content: "\25CF"; color: var(--series-2); font-size: 9px; margin-right: 5px; vertical-align: 1px; }
+#overview td.status { white-space: nowrap; color: var(--ink-2); }
+#overview thead th { vertical-align: bottom; max-width: 96px; white-space: normal; line-height: 1.35; }
+#overview thead th:first-child { max-width: none; }
+.cover .c3 { background: var(--below); }
+.tier { font: 500 10px var(--mono); letter-spacing: 0.05em; color: var(--ink-3); white-space: nowrap; }
 .tag { font: 500 10px var(--mono); letter-spacing: 0.05em; color: var(--ink-3); border: 1px solid var(--rule); border-radius: 3px; padding: 1px 5px; margin-left: 6px; white-space: nowrap; }
 .strip svg { display: block; width: 100%; height: auto; overflow: visible; }
 .strip text { font: 400 11px var(--mono); fill: var(--ink-3); }
@@ -151,6 +154,9 @@ ul.plain { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
     </div>
     <div class="controls">
       <div class="field"><span>Show first</span><div class="seg" id="sorts" role="group" aria-label="Show first"></div></div>
+      <div class="field"><span>Review cover</span><div class="seg" id="statuses" role="group" aria-label="Review cover"></div></div>
+    </div>
+    <div class="controls">
       <div class="checks"><label><input type="checkbox" id="hide-shared"> Hide areas that only borrow another area's label (their pull requests are mostly not their own)</label></div>
     </div>
     <div class="tiles" id="all-tiles"></div>
@@ -160,7 +166,7 @@ ul.plain { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
       <div class="strip chart" id="strip"></div>
     </div>
     <div class="scroll"><table id="overview"></table></div>
-    <p class="note">A dot marks a value in the worst tenth of the areas shown. Listed: Maintainers and Collaborators. Active: those of them who reviewed about one pull request a month or more. Dependable: those who answer at least half of the requests they get. Load: pull requests arriving per week for each active person. Short of 2: the share of pull requests that have fewer than two dependable listed people left once their author is set aside, so cannot get both approvals from the list. From list: the share of approvals given by listed people. Answered: review requests to listed people that were answered. Unanswered: the share of pull requests on which nobody listed took part. 1st review: median days from ready to the first review by anyone. Waiting: open, ready pull requests with no review after two weeks. Counted with a comment as an answer and with the excuse rule on; open an area for the other ways of counting.</p>
+    <p class="note">A regular reviewer is a listed person who answers at least half of five or more review requests in the period; an occasional one took part but less than that; a silent one not at all. Listed shows those three counts, and a question mark counts people with too few requests to tell. Review cover: no regular reviewer, one, thin (two or more, but they write so much of the code that a fifth or more of the pull requests have fewer than two of them besides the author), or covered. Not covered: the share of pull requests with fewer than two regular reviewers besides their author, which therefore rely on occasional or unlisted reviewers for an approval. Regulars alone: the share of merged pull requests whose two approvals both came from regular reviewers. No listed reviewer: pull requests on which nobody listed took part. 2nd approval: median days from ready to the second approval. Candidates: people not on the list who reviewed a tenth of the area's pull requests or more.</p>
   </div>
 </section>
 </div>
@@ -197,15 +203,21 @@ ul.plain { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
     <p class="note" id="area-note"></p>
   </div>
   <div class="panel">
-    <h3>Can a pull request here get two approvals from the list?</h3>
+    <h3 id="cover-title">Review cover</h3>
     <div class="cover" id="cover" role="img"></div>
     <div class="keys" id="cover-keys"></div>
     <p class="verdict" id="cover-text"></p>
-    <p class="note">A pull request needs two approvals from people other than its author. This counts, for each pull request that became ready in the period, the listed people who answer at least half of their requests, leaving out the author. It follows the period and the counting options above.</p>
+    <p class="note">A pull request needs two approvals from people other than its author. A regular reviewer is a listed person who answers at least half of five or more requests in the period. The bar counts, for each pull request that became ready, the regular reviewers besides its author; with fewer than two, the pull request relies on occasional or unlisted reviewers for an approval. It follows the period and the counting options above.</p>
+  </div>
+  <div class="panel">
+    <h3>Where the two approvals came from</h3>
+    <div class="cover" id="outcome" role="img"></div>
+    <div class="keys" id="outcome-keys"></div>
+    <p class="note" id="outcome-note"></p>
   </div>
   <div class="panel">
     <h3>Reviewers who are not on the list</h3>
-    <p class="note">An approval by any member of the organization counts towards a merge, so these people already carry part of the area's review. The most active of them are candidates for the list.</p>
+    <p class="note">An approval by any member of the organization counts towards a merge, so these people already carry part of the area's review. Those who reviewed a tenth of the area's pull requests or more are marked as regular here: they are the candidates for the list.</p>
     <div class="scroll"><table id="candidates"></table></div>
   </div>
 </section>
@@ -236,7 +248,7 @@ ul.plain { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
     <li>With the excuse option on, a miss is also not counted when the pull request closed within seven days of the request or two other people had approved it within seven days.</li>
     <li>People with fewer than five countable requests are not judged. The line never takes a Maintainer off.</li>
     <li>Approved counts the pull requests the person first approved in the period, asked or not. Bot accounts are left out everywhere.</li>
-    <li>In the view of all areas, a listed person counts as active when they reviewed about one pull request a month or more in the period. An area whose label is named after another area (a West project using "area: Tests", say) sees that area's pull requests, so its figures are not its own; such areas are hidden there unless asked for.</li>
+    <li>A regular reviewer is a listed person who answers at least half of five or more requests in the period. An occasional reviewer took part but is not regular; a silent one did not take part; with fewer than five requests there is too little to tell. A pull request is not covered when fewer than two regular reviewers are left besides its author. An area whose label is named after another area (a West project using "area: Tests", say) sees that area's pull requests, so its figures are not its own; such areas are hidden there unless asked for.</li>
     <li>A period that includes a holiday season lowers everyone's rate. Compare like with like before drawing a conclusion about a person.</li>
     <li>The numbers come from public GitHub data and are refreshed by a script; see the <a id="repo-link" href="https://github.com/jhedberg/zephyr-review-capacity">source</a> for the exact rules.</li>
   </ul>
@@ -261,7 +273,7 @@ let INDEX = null, AREA = null, SUMMARY = null;
 const params = new URLSearchParams(location.search);
 const state = {
   view: params.get("view") || (params.has("area") ? "area" : "all"),
-  sort: params.get("sort") || "load", dir: +(params.get("dir") || -1),
+  sort: params.get("sort") || "status", dir: +(params.get("dir") || 1), status: params.get("cover") || "",
   minPrs: +(params.get("min") || 25), hideShared: params.get("shared") !== "1", allFilter: params.get("q") || "",
   area: params.get("area") || "Bluetooth Host",
   from: params.get("from"), to: params.get("to"), days: +(params.get("days") || 90),
@@ -277,6 +289,7 @@ function remember() {
     p.set("days", state.days || 90); p.set("sort", state.sort); p.set("dir", state.dir); p.set("min", state.minPrs);
     if (!state.hideShared) p.set("shared", "1");
     if (state.allFilter) p.set("q", state.allFilter);
+    if (state.status) p.set("cover", state.status);
     history.replaceState(null, "", "?" + p.toString());
     return;
   }
@@ -382,7 +395,9 @@ function render() {
     const bar = el("div", "bar"), fill = el("i"), mark = el("b");
     fill.style.width = (p.rate == null ? 0 : Math.max(p.rate * 100, 0.8)) + "%"; mark.style.left = state.line + "%";
     bar.appendChild(fill); bar.appendChild(mark); bar.setAttribute("role", "img"); bar.setAttribute("aria-label", p.w + " answered " + pc(p.rate) + " of requests");
-    row.appendChild(bar); row.appendChild(el("div", "rate", few ? "n/a" : pc(p.rate)));
+    p.tier = few ? "unrated" : (p.rate >= 0.5 ? "regular" : (p.s.num || p.s.reviewed ? "occasional" : "silent"));
+    who.appendChild(el("span", "tier", { regular: "REGULAR", occasional: "OCCASIONAL", silent: "SILENT", unrated: "TOO FEW REQUESTS" }[p.tier]));
+    row.appendChild(bar); row.appendChild(el("div", "rate", few ? "–" : pc(p.rate)));
     const meta = el("div", "meta");
     const cell = (label, text) => { const c = el("div", "cell"); c.appendChild(el("small", null, label)); c.appendChild(document.createTextNode(text)); meta.appendChild(c); };
     cell("answered", p.s.num + " of " + p.s.req + " · " + f1(p.s.num / weeks) + "/wk");
@@ -399,7 +414,7 @@ function render() {
   else {
     say("At " + state.line + "%, " + keep.length + " of " + (keep.length + drop.length) + " Collaborators stay: "); names(keep); say(". ");
     if (drop.length) { say("Below the line: "); names(drop); say(". In this period they approved " + lost + " pull requests here. "); }
-    if (thin.length) { say("Not judged, fewer than " + MIN_REQ + " requests: "); names(thin); say("."); }
+    if (thin.length) { say("Too few requests to tell (fewer than " + MIN_REQ + "): "); names(thin); say("."); }
   }
 
   /* area note and unlisted reviewers */
@@ -408,33 +423,55 @@ function render() {
   $("area-note").textContent = answers.length
     ? answers.length + " pull requests asked the list for review in this period. On average " + f1(mean) + " of the people asked took part."
     : "No pull request asked the list for review in this period.";
-  /* two approvals from the list? */
-  const dependable = people.filter((p) => p.s.req >= MIN_REQ && p.rate >= 0.5);
-  const depIdx = new Set(dependable.map((p) => L.indexOf(p.w)));
+  /* review cover */
+  const regular = people.filter((p) => p.tier === "regular");
+  const regIdx = new Set(regular.map((p) => L.indexOf(p.w)));
+  const listedIdx = new Set(people.map((p) => L.indexOf(p.w)));
+  const tierCount = (t) => people.filter((p) => p.tier === t).length;
   const readyPrs = P.filter((p) => p[3] >= F && p[3] < T && p[1] >= 0);
   const cover = [0, 0, 0], byAuthor = new Map();
-  for (const p of readyPrs) { cover[Math.min(2, depIdx.size - (depIdx.has(p[1]) ? 1 : 0))]++; byAuthor.set(p[1], (byAuthor.get(p[1]) || 0) + 1); }
-  const bar = $("cover"), keys = $("cover-keys"); bar.textContent = ""; keys.textContent = "";
-  const parts = [["c2", cover[2], "two or more left"], ["c1", cover[1], "one left"], ["c0", cover[0], "none left"]];
-  for (const [cls, n, label] of parts) {
-    if (n) { const seg = el("span", cls); seg.style.flex = n + " 1 0"; seg.title = n + " pull requests: " + label; bar.appendChild(seg); }
-    const k = el("span"); const sw = el("i"); sw.className = ""; sw.style.background = css(cls === "c2" ? "--accent" : cls === "c1" ? "--series-2" : "--ink"); k.appendChild(sw); k.appendChild(document.createTextNode(label + ": " + n)); keys.appendChild(k);
-  }
-  bar.setAttribute("aria-label", parts.map(([, n, label]) => n + " " + label).join(", "));
+  for (const p of readyPrs) { cover[Math.min(2, regIdx.size - (regIdx.has(p[1]) ? 1 : 0))]++; byAuthor.set(p[1], (byAuthor.get(p[1]) || 0) + 1); }
+  const short = cover[0] + cover[1];
+  const status = regIdx.size === 0 ? "none" : regIdx.size === 1 ? "single" : (readyPrs.length && short / readyPrs.length >= 0.2 ? "thin" : "covered");
+  $("cover-title").textContent = "Review cover: " + { none: "no regular reviewer", single: "one regular reviewer", thin: "thin", covered: "covered" }[status];
+  const segments = (id, keysId, parts) => {
+    const bar = $(id), keys = $(keysId); bar.textContent = ""; keys.textContent = "";
+    for (const [cls, n, label] of parts) {
+      if (n) { const seg = el("span", cls); seg.style.flex = n + " 1 0"; seg.title = n + ": " + label; bar.appendChild(seg); }
+      const k = el("span"), sw = el("i"); sw.style.background = css({ c2: "--accent", c1: "--series-2", c0: "--ink", c3: "--below" }[cls]);
+      k.appendChild(sw); k.appendChild(document.createTextNode(label + ": " + n)); keys.appendChild(k);
+    }
+    bar.setAttribute("aria-label", parts.map(([, n, label]) => n + " " + label).join(", "));
+  };
+  segments("cover", "cover-keys", [["c2", cover[2], "two or more regular reviewers besides the author"], ["c1", cover[1], "one"], ["c0", cover[0], "none"]]);
   const ct = $("cover-text"); ct.textContent = "";
   const cs = (t) => ct.appendChild(document.createTextNode(t));
   const cn = (a) => ct.appendChild(el("span", "names", a.join(", ")));
+  cs(people.length + " listed: " + regular.length + " regular");
+  if (regular.length) { cs(" ("); cn(regular.map((p) => p.w)); cs(")"); }
+  cs(", " + tierCount("occasional") + " occasional, " + tierCount("silent") + " silent" + (tierCount("unrated") ? ", " + tierCount("unrated") + " with too few requests to tell" : "") + ". ");
   if (!readyPrs.length) { cs("No pull request became ready for review in this period."); }
   else {
-    const short = cover[0] + cover[1];
-    if (!dependable.length) cs("Nobody on the list answers at least half of their requests. ");
-    else { cn(dependable.map((p) => p.w)); cs(dependable.length === 1 ? " is the one listed person who answers at least half of their requests. " : " are the listed people who answer at least half of their requests. "); }
-    cs(short + " of the " + readyPrs.length + " pull requests (" + pc(short / readyPrs.length) + ") have fewer than two of them left once the author is set aside. ");
+    cs(short + " of the " + readyPrs.length + " pull requests (" + pc(short / readyPrs.length) + ") have fewer than two regular reviewers besides their author and rely on occasional or unlisted reviewers for an approval. ");
     const [topIdx, topN] = [...byAuthor.entries()].sort((x, y) => y[1] - x[1])[0];
-    if (depIdx.has(topIdx)) { cn([L[topIdx]]); cs(" brings " + pc(topN / readyPrs.length) + " of the pull requests and cannot approve those. "); }
-    if (dependable.length === 2 && short) cs("One more such person would close the gap.");
-    else if (dependable.length < 2) cs("It takes three such people for every pull request to have two.");
+    if (regIdx.has(topIdx)) { cn([L[topIdx]]); cs(" brings " + pc(topN / readyPrs.length) + " of the pull requests and cannot approve those. "); }
+    if (regular.length === 2 && short) cs("One more regular reviewer would cover them.");
+    else if (regular.length < 2) cs("It takes three regular reviewers for every pull request to have two.");
   }
+
+  /* where the approvals of merged pull requests came from */
+  const approvers = new Map();
+  for (const r of AREA.revs) { if (r[3]) { if (!approvers.has(r[1])) approvers.set(r[1], []); approvers.get(r[1]).push(r[0]); } }
+  const outcome = [0, 0, 0, 0];
+  P.forEach((p, row) => {
+    if (p[4] < F || p[4] >= T) return;
+    const who = (approvers.get(row) || []).filter((w) => w !== p[1]);
+    const nReg = who.filter((w) => regIdx.has(w)).length, nListed = who.filter((w) => listedIdx.has(w)).length;
+    outcome[nReg >= 2 ? 0 : nListed >= 2 ? 1 : who.length >= 2 ? 2 : 3]++;
+  });
+  segments("outcome", "outcome-keys", [["c2", outcome[0], "regular reviewers alone"], ["c1", outcome[1], "with an occasional listed reviewer"], ["c0", outcome[2], "with someone not on the list"], ["c3", outcome[3], "fewer than two approvals on record"]]);
+  const merges = outcome.reduce((x, y) => x + y, 0);
+  $("outcome-note").textContent = merges ? "The " + merges + " pull requests merged in the period, by who gave their two approvals. Review cover above says what the list can supply; this says what happened." : "No pull request was merged in this period.";
 
   /* reviewers who are not listed */
   const STANDING = { 2: "member of the organization", 1: "outside collaborator", 0: "not a member", "-1": "not known yet" };
@@ -442,12 +479,13 @@ function render() {
   const ctab = $("candidates"); ctab.textContent = "";
   if (outside.length) {
     const h = el("thead"), r0 = el("tr");
-    [["Reviewer", ""], ["Reviewed", "n"], ["Approved", "n"], ["Share of the area's pull requests", "n"], ["Last review", "n"], ["Standing", ""]].forEach(([t, c]) => r0.appendChild(el("th", c, t)));
+    [["Reviewer", ""], ["Reviewed", "n"], ["Approved", "n"], ["Share of the area's pull requests", "n"], ["Last review", "n"], ["Regular here", ""], ["Standing", ""]].forEach(([t, c]) => r0.appendChild(el("th", c, t)));
     h.appendChild(r0); ctab.appendChild(h);
     const body = el("tbody");
     for (const [i, st] of outside) {
       const tr = el("tr"), who = el("td", "login"); who.appendChild(profile(L[i])); tr.appendChild(who);
       [st.reviewed, st.approved, readyPrs.length ? pc(st.reviewed / readyPrs.length) : "n/a", st.last ? iso(st.last) : ""].forEach((x) => tr.appendChild(el("td", "n", String(x))));
+      tr.appendChild(el("td", null, st.reviewed >= Math.max(5, readyPrs.length / 10) ? "yes" : ""));
       tr.appendChild(el("td", null, STANDING[(AREA.standing || [])[i] ?? -1]));
       body.appendChild(tr);
     }
@@ -458,12 +496,13 @@ function render() {
   const opened = P.filter((p) => p[2] >= F && p[2] < T), merged = P.filter((p) => p[4] >= F && p[4] < T);
   const toReview = P.filter((p) => p[3] >= F && p[3] < T && p[6]).map((p) => Math.max(0, p[6] - p[3]) / DAY);
   const toMerge = merged.filter((p) => p[3]).map((p) => Math.max(0, p[4] - p[3]) / DAY);
+  const toSecond = P.filter((p) => p[3] >= F && p[3] < T && p[7]).map((p) => Math.max(0, p[7] - p[3]) / DAY);
   const tiles = $("tiles"); tiles.textContent = "";
   [[f1(opened.length / weeks), "opened a week", opened.length + " in the period"],
    [f1(merged.length / weeks), "merged a week", merged.length + " in the period"],
    [toReview.length ? f1(median(toReview)) + " d" : "n/a", "ready to first review, median", toReview.length + " pull requests"],
-   [toMerge.length ? f1(median(toMerge)) + " d" : "n/a", "ready to merged, median", toMerge.length + " pull requests"],
-   [f1(mean), "listed people answering per pull request", "of those asked"]]
+   [toSecond.length ? f1(median(toSecond)) + " d" : "n/a", "ready to second approval, median", toSecond.length + " pull requests"],
+   [toMerge.length ? f1(median(toMerge)) + " d" : "n/a", "ready to merged, median", toMerge.length + " pull requests"]]
     .forEach(([val, label, sub]) => { const t = el("div", "tile"); t.appendChild(el("div", "v", val)); t.appendChild(el("div", "l", label)); t.appendChild(el("div", "s", sub)); tiles.appendChild(t); });
   const buckets = [];
   for (let t = F; t < T; t += 7 * DAY) buckets.push({ start: t, opened: 0, merged: 0 });
@@ -498,50 +537,52 @@ function render() {
 }
 
 /* ---------- all areas ---------- */
+const STATUS = { none: "No regular", single: "One regular", thin: "Thin", covered: "Covered" };
+const STATUS_RANK = { none: 0, single: 1, thin: 2, covered: 3 };
 const COLS = [
-  { key: "name", label: "Area", worse: 0 },
-  { key: "listed", label: "Listed", worse: 0, fmt: (v) => v },
-  { key: "active", label: "Active", worse: -1, fmt: (v) => v },
-  { key: "dependable", label: "Dependable", worse: -1, fmt: (v) => v },
-  { key: "perWeek", label: "PRs/week", worse: 0, fmt: f1 },
-  { key: "load", label: "Load", worse: 1, fmt: (v) => v === Infinity ? "nobody active" : f1(v) },
-  { key: "short", label: "Short of 2", worse: 1, fmt: pc },
-  { key: "fromList", label: "From list", worse: -1, fmt: pc },
-  { key: "answer", label: "Answered", worse: -1, fmt: pc },
-  { key: "silent", label: "Unanswered", worse: 1, fmt: pc },
-  { key: "firstReview", label: "1st review (d)", worse: 1, fmt: f1 },
-  { key: "waiting", label: "Waiting", worse: 1, fmt: (v) => v },
+  { key: "name", label: "Area" },
+  { key: "rank", label: "Review cover", first: 1, fmt: (v, r) => STATUS[r.status] },
+  { key: "regular", label: "Listed: regular · occas. · silent", first: 1, fmt: (v, r) => r.listed + ": " + r.tiers[0] + " · " + r.tiers[1] + " · " + r.tiers[2] + (r.tiers[3] ? " · " + r.tiers[3] + "?" : "") },
+  { key: "perWeek", label: "PRs/week", first: -1, fmt: f1 },
+  { key: "perRegular", label: "PRs/week per regular", first: -1, fmt: (v) => v === Infinity ? "no regular" : f1(v) },
+  { key: "notCovered", label: "Not covered", first: -1, fmt: pc },
+  { key: "regAlone", label: "Regulars alone", first: 1, fmt: pc },
+  { key: "noListed", label: "No listed reviewer", first: -1, fmt: pc },
+  { key: "second", label: "2nd approval (d)", first: -1, fmt: f1 },
+  { key: "waiting", label: "Waiting >2 wk", first: -1, fmt: (v) => v },
+  { key: "candidates", label: "Candidates", first: -1, fmt: (v) => v },
 ];
-const SORTS = [["load", -1, "Needs reviewers"], ["short", -1, "Cannot reach two approvals"], ["answer", 1, "Lowest answer rate"], ["silent", -1, "Most left unanswered"], ["firstReview", -1, "Slowest first review"], ["waiting", -1, "Most waiting"]];
+const SORTS = [["rank", 1, "Weakest cover"], ["perRegular", -1, "Most per regular reviewer"], ["notCovered", -1, "Least covered"], ["second", -1, "Slowest second approval"], ["waiting", -1, "Most waiting"], ["candidates", -1, "Most candidates"]];
 
 function areaRows() {
   const days = state.days || 90, weeks = days / 7;
   return SUMMARY.areas.map((a) => {
-    const w = a.w[days];
+    const w = a.w[days], covered = w.cover[0] + w.cover[1] + w.cover[2], merged = w.outcome.reduce((x, y) => x + y, 0);
     return {
-      name: a.name, shares: a.shares_label, listed: a.maintainers + a.collaborators, active: w.active, ready: w.ready,
-      perWeek: w.ready / weeks, load: w.active ? w.ready / weeks / w.active : (w.ready ? Infinity : null),
-      fromList: w.approvals >= 5 ? w.listed_approvals / w.approvals : null,
-      answer: w.asks >= 5 ? w.answered / w.asks : null,
-      silent: w.asked_prs >= 5 ? w.silent_prs / w.asked_prs : null,
-      dependable: w.dependable,
-      short: w.cover[0] + w.cover[1] + w.cover[2] >= 5 ? (w.cover[0] + w.cover[1]) / (w.cover[0] + w.cover[1] + w.cover[2]) : null,
-      firstReview: w.first_review, waiting: a.waiting, unlisted: w.unlisted,
+      name: a.name, shares: a.shares_label, listed: a.maintainers + a.collaborators, tiers: w.tiers, regular: w.tiers[0],
+      status: w.status, rank: STATUS_RANK[w.status], ready: w.ready, perWeek: w.ready / weeks,
+      perRegular: w.tiers[0] ? w.ready / weeks / w.tiers[0] : (w.ready ? Infinity : null),
+      notCovered: covered >= 5 ? (w.cover[0] + w.cover[1]) / covered : null,
+      regAlone: merged >= 5 ? w.outcome[0] / merged : null,
+      noListed: w.asked_prs >= 5 ? w.silent_prs / w.asked_prs : null,
+      second: w.second_approval, waiting: a.waiting, candidates: w.candidate_count, candidateNames: w.candidates,
     };
   });
 }
 
 function renderAll() {
+  if (!COLS.some((c) => c.key === state.sort)) { state.sort = "rank"; state.dir = 1; }
   remember();
   const days = state.days || 90;
   for (const b of $("all-presets").children) b.setAttribute("aria-pressed", String(+b.dataset.days === days));
   for (const b of $("sorts").children) b.setAttribute("aria-pressed", String(b.dataset.key === state.sort && +b.dataset.dir === state.dir));
+  for (const b of $("statuses").children) b.setAttribute("aria-pressed", String(b.dataset.status === state.status));
   const words = state.allFilter.toLowerCase().split(/\s+/).filter(Boolean);
-  const rows = areaRows().filter((r) => r.ready >= state.minPrs && (!state.hideShared || !r.shares) && words.every((w) => r.name.toLowerCase().includes(w)));
-  const col = COLS.find((c) => c.key === state.sort) || COLS[4];
-  const val = (r) => r[col.key];
+  const inScope = areaRows().filter((r) => r.ready >= state.minPrs && (!state.hideShared || !r.shares) && words.every((w) => r.name.toLowerCase().includes(w)));
+  const rows = inScope.filter((r) => !state.status || r.status === state.status);
+  const col = COLS.find((c) => c.key === state.sort);
   rows.sort((a, b) => {
-    const x = val(a), y = val(b);
+    const x = a[col.key], y = b[col.key];
     if (x == null && y == null) return a.name.localeCompare(b.name);
     if (x == null) return 1;
     if (y == null) return -1;
@@ -549,22 +590,13 @@ function renderAll() {
     return x === y ? b.perWeek - a.perWeek : state.dir * (x - y);
   });
 
-  /* worst tenth per column, among the areas shown */
-  const bad = {};
-  for (const c of COLS) {
-    if (!c.worse) continue;
-    const v = rows.map((r) => r[c.key]).filter((x) => x != null).sort((a, b) => c.worse * (b - a));
-    bad[c.key] = v.length >= 10 ? v[Math.max(0, Math.floor(v.length / 10) - 1)] : null;
-  }
-  const isBad = (c, x) => c.worse && x != null && bad[c.key] != null && c.worse * (x - bad[c.key]) >= 0 && !(c.key === "waiting" && x === 0) && !(c.key === "silent" && x === 0);
-
   const tiles = $("all-tiles"); tiles.textContent = "";
-  const count = (f) => rows.filter(f).length;
-  [[rows.length, "areas shown", "of " + SUMMARY.areas.length + " in MAINTAINERS.yml"],
-   [count((r) => r.active === 0), "with nobody listed who reviews", "about one a month or more"],
-   [count((r) => r.active === 1), "resting on one listed reviewer", ""],
-   [count((r) => r.fromList != null && r.fromList < 0.5), "with under half of approvals from the list", ""],
-   [count((r) => r.silent != null && r.silent >= 0.5), "where half the pull requests get no answer from the list", ""]]
+  const count = (st) => inScope.filter((r) => r.status === st).length;
+  [[inScope.length, "areas in scope", "of " + SUMMARY.areas.length + " in MAINTAINERS.yml"],
+   [count("none"), "with no regular reviewer", "nobody listed answers half of their requests"],
+   [count("single"), "with one regular reviewer", "no pull request has two"],
+   [count("thin"), "with thin cover", "the regular reviewers write much of the code"],
+   [count("covered"), "covered", "two regular reviewers besides the author"]]
     .forEach(([v, label, sub]) => { const t = el("div", "tile"); t.appendChild(el("div", "v", String(v))); t.appendChild(el("div", "l", label)); t.appendChild(el("div", "s", sub)); tiles.appendChild(t); });
 
   drawStrip(rows, col);
@@ -572,9 +604,9 @@ function renderAll() {
   const table = $("overview"); table.textContent = "";
   const th = el("thead"), hr = el("tr");
   for (const c of COLS) {
-    const h = el("th", c.key === "name" ? null : "n"), b = el("button", null, c.label); b.type = "button";
+    const h = el("th", c.key === "name" || c.key === "rank" ? null : "n"), b = el("button", null, c.label); b.type = "button";
     if (c.key === state.sort) h.setAttribute("aria-sort", state.dir > 0 ? "ascending" : "descending");
-    b.addEventListener("click", () => { if (state.sort === c.key) { state.dir = -state.dir; } else { state.sort = c.key; state.dir = c.key === "name" ? 1 : (c.worse >= 0 ? -1 : 1); } renderAll(); });
+    b.addEventListener("click", () => { if (state.sort === c.key) { state.dir = -state.dir; } else { state.sort = c.key; state.dir = c.first || 1; } renderAll(); });
     h.appendChild(b); hr.appendChild(h);
   }
   th.appendChild(hr); table.appendChild(th);
@@ -585,7 +617,11 @@ function renderAll() {
     td.appendChild(open);
     if (r.shares) td.appendChild(el("span", "tag", "BORROWED LABEL"));
     tr.appendChild(td);
-    for (const c of COLS.slice(1)) { const x = r[c.key]; tr.appendChild(el("td", "n" + (isBad(c, x) ? " bad" : ""), x == null ? "n/a" : String(c.fmt(x)))); }
+    for (const c of COLS.slice(1)) {
+      const x = r[c.key], cell = el("td", c.key === "rank" ? "status" : "n", x == null ? "n/a" : String(c.fmt(x, r)));
+      if (c.key === "candidates" && r.candidateNames.length) cell.title = r.candidateNames.join(", ");
+      tr.appendChild(cell);
+    }
     tb.appendChild(tr);
   }
   table.appendChild(tb);
@@ -594,14 +630,14 @@ function renderAll() {
 /* where every shown area sits on the measure the table is sorted by */
 function drawStrip(rows, col) {
   const host = $("strip"); host.textContent = "";
-  const numeric = col.key !== "name";
+  const numeric = !["name", "rank", "regular"].includes(col.key);
   $("strip-title").textContent = numeric ? "Spread of the areas: " + col.label.toLowerCase() : "";
   $("strip-note").textContent = numeric ? "One mark per area. Sort the table by another column to see that spread." : "";
   if (!numeric) return;
   const pts = rows.filter((r) => r[col.key] != null);
   if (!pts.length) return;
   const finite = pts.map((r) => r[col.key]).filter((v) => v !== Infinity).sort((a, b) => a - b);
-  const isShare = ["fromList", "answer", "silent", "short"].includes(col.key);
+  const isShare = ["notCovered", "regAlone", "noListed"].includes(col.key);
   const cap = isShare ? 1 : (finite.length ? finite[Math.min(finite.length - 1, Math.floor(finite.length * 0.97))] || 1 : 1);
   const hasInf = pts.some((r) => r[col.key] === Infinity);
   const W = host.clientWidth || 600, H = 74, l = 8, r = hasInf ? 110 : 16;
@@ -609,7 +645,7 @@ function drawStrip(rows, col) {
   const x = (v) => l + (W - l - r) * Math.min(v, cap) / cap;
   svg("line", { x1: l, x2: W - r, y1: 46, y2: 46, stroke: css("--rule"), "stroke-width": 1 }, s);
   [0, 0.25, 0.5, 0.75, 1].forEach((f) => { const t = svg("text", { x: l + (W - l - r) * f, y: 64, "text-anchor": f === 0 ? "start" : (f === 1 ? "end" : "middle") }, s); t.textContent = isShare ? pc(f) : f1(cap * f) + (f === 1 && !isShare ? "+" : ""); });
-  if (hasInf) svg("text", { x: W - r + 14, y: 64 }, s).textContent = "nobody active";
+  if (hasInf) svg("text", { x: W - r + 14, y: 64 }, s).textContent = "no regular";
   const tip = $("tip");
   let inf = 0;
   for (const p of pts) {
@@ -617,7 +653,7 @@ function drawStrip(rows, col) {
     const cx = v === Infinity ? W - r + 16 + (inf++ % 30) * 3 : x(v);
     const t = svg("rect", { class: "t", x: cx - 1, y: 14, width: 2.5, height: 32, fill: css(v === Infinity ? "--series-2" : "--accent"), opacity: 0.55, tabindex: 0 }, s);
     const show = () => { const hr = host.getBoundingClientRect(), sr = s.getBoundingClientRect();
-      tip.textContent = p.name + ": " + col.fmt(v); tip.hidden = false;
+      tip.textContent = p.name + ": " + col.fmt(v, p); tip.hidden = false;
       let left = hr.left + window.scrollX + cx * sr.width / W + 10;
       if (left + tip.offsetWidth > window.scrollX + document.documentElement.clientWidth - 8) left -= tip.offsetWidth + 20;
       tip.style.left = Math.max(8, left) + "px"; tip.style.top = (hr.top + window.scrollY - 30) + "px"; t.setAttribute("opacity", 1); };
@@ -625,7 +661,7 @@ function drawStrip(rows, col) {
     t.addEventListener("pointermove", show); t.addEventListener("focus", show); t.addEventListener("pointerleave", hide); t.addEventListener("blur", hide);
     t.addEventListener("click", () => { state.view = "area"; state.skip = ""; showView(); loadArea(p.name); window.scrollTo(0, 0); });
   }
-  if (finite.length) { const m = median(finite); svg("line", { x1: x(m), x2: x(m), y1: 8, y2: 50, stroke: css("--ink"), "stroke-width": 1.5 }, s); svg("text", { x: x(m), y: 8, "text-anchor": "middle" }, s).textContent = "median " + col.fmt(m); }
+  if (finite.length) { const m = median(finite); svg("line", { x1: x(m), x2: x(m), y1: 8, y2: 50, stroke: css("--ink"), "stroke-width": 1.5 }, s); svg("text", { x: Math.min(Math.max(x(m), 50), W - 50), y: 8, "text-anchor": "middle" }, s).textContent = "median " + col.fmt(m); }
 }
 
 function showView() {
@@ -691,6 +727,7 @@ async function start() {
     else { $("stamp").textContent += " · updated since " + oldest; }
   }
   [30, 90, 180, 365].forEach((d) => { const b = el("button", null, "Last " + d + " days"); b.type = "button"; b.dataset.days = d; b.addEventListener("click", () => { state.days = d; renderAll(); }); $("all-presets").appendChild(b); });
+  [["", "All"], ["none", "No regular reviewer"], ["single", "One"], ["thin", "Thin"], ["covered", "Covered"]].forEach(([st, label]) => { const b = el("button", null, label); b.type = "button"; b.dataset.status = st; b.addEventListener("click", () => { state.status = st; renderAll(); }); $("statuses").appendChild(b); });
   SORTS.forEach(([key, dir, label]) => { const b = el("button", null, label); b.type = "button"; b.dataset.key = key; b.dataset.dir = dir; b.addEventListener("click", () => { state.sort = key; state.dir = dir; renderAll(); }); $("sorts").appendChild(b); });
   [5, 10, 25, 50, 100, 250].forEach((n) => { const o = el("option", null, String(n)); o.value = n; $("min-prs").appendChild(o); });
   $("min-prs").value = state.minPrs; $("min-prs").addEventListener("change", () => { state.minPrs = +$("min-prs").value; renderAll(); });

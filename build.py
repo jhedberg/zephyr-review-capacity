@@ -170,8 +170,9 @@ def build_area(name: str, area: dict, prs: list[PR], maintains: dict, now: int,
 
 WINDOWS = (30, 90, 180, 365)
 WAITING = 14 * DAY
-DEPENDABLE = 0.5   # answers at least this share of the requests
-MIN_REQUESTS = 5
+REGULAR = 0.5      # a regular reviewer answers at least this share of requests
+MIN_REQUESTS = 5   # with fewer requests there is too little to tell
+THIN = 0.2         # share of pull requests not covered that makes cover thin
 
 
 def median(values: list) -> float | None:
@@ -182,19 +183,45 @@ def median(values: list) -> float | None:
     return values[mid] if len(values) % 2 else (values[mid - 1] + values[mid]) / 2
 
 
+def tier(requests: int, answered: int, reviewed: int) -> str:
+    """Where a listed person stands in a period: a regular reviewer answers
+    at least half of five or more requests; with fewer requests there is too
+    little to tell; the rest are occasional if they took part at all."""
+    if requests < MIN_REQUESTS:
+        return "unrated"
+    if answered / requests >= REGULAR:
+        return "regular"
+    return "occasional" if answered or reviewed else "silent"
+
+
+def status_of(regular: int, cover: list) -> str:
+    """The state of an area's review cover, from worst to best."""
+    total = sum(cover)
+    if regular == 0:
+        return "none"
+    if regular == 1:
+        return "single"
+    if total and (cover[0] + cover[1]) / total >= THIN:
+        return "thin"
+    return "covered"
+
+
 def summarize(data: dict, now: int) -> dict:
     """Health figures of one area for each fixed period, counted the default
     way: a comment counts, and a miss is excused when the pull request closed
     or collected two other approvals within a week."""
     logins, prs = data["logins"], data["prs"]
-    maintainers = {logins.index(w) for w in data["maintainers"]}
-    roster = maintainers | {logins.index(w) for w in data["collaborators"]}
+    roster = [logins.index(w) for w in data["maintainers"] + data["collaborators"]]
+    listed = set(roster)
     waiting = sum(1 for p in prs if not p[5] and not p[8] and not p[6]
                   and p[3] and now - p[3] >= WAITING)
+    approvers: dict[int, set] = {}
+    for who, row, _first, approved, _last in data["revs"]:
+        if approved:
+            approvers.setdefault(row, set()).add(who)
     out = {"waiting": waiting, "w": {}}
     for days in WINDOWS:
         start = now - days * DAY
-        asks = answered = m_asks = m_answered = 0
         per_pr: dict[int, int] = {}
         per_person: dict[int, list] = {}
         for who, row, asked, reviewed, commented, flags in data["asks"]:
@@ -206,56 +233,64 @@ def summarize(data: dict, now: int) -> dict:
                     continue
                 if now - asked < PENDING_GRACE and not prs[row][5]:
                     continue
-            asks += 1
-            answered += hit
             per_pr[row] = per_pr.get(row, 0) + hit
             tally = per_person.setdefault(who, [0, 0])
             tally[0] += 1
             tally[1] += hit
-            if who in maintainers:
-                m_asks += 1
-                m_answered += hit
         reviewed_by: dict[int, int] = {}
-        approvals = listed_approvals = 0
-        for who, _row, first, approved, _last in data["revs"]:
+        for who, _row, first, _approved, _last in data["revs"]:
             if first >= start:
                 reviewed_by[who] = reviewed_by.get(who, 0) + 1
-            if approved >= start:
-                approvals += 1
-                listed_approvals += who in roster
-        need = max(1, round(days / 30))  # about one pull request a month
-        active = sum(1 for who in roster if reviewed_by.get(who, 0) >= need)
-        total_reviews = sum(reviewed_by.values())
+        tiers = {"regular": 0, "occasional": 0, "silent": 0, "unrated": 0}
+        regular = set()
+        for who in roster:
+            n, hits = per_person.get(who, (0, 0))
+            kind = tier(n, hits, reviewed_by.get(who, 0))
+            tiers[kind] += 1
+            if kind == "regular":
+                regular.add(who)
+
         ready = [p for p in prs if p[3] >= start]
-        merged = [p for p in prs if p[4] >= start]
-        # Listed people an author can count on, and how many pull requests
-        # are left with fewer than two of them once their author is set aside.
-        dependable = {who for who, (n, hits) in per_person.items()
-                      if n >= MIN_REQUESTS and hits / n >= DEPENDABLE}
+        # pull requests with 0, 1, 2+ regular reviewers besides their author
         cover = [0, 0, 0]
         authors: dict[int, int] = {}
         for p in ready:
-            cover[min(2, len(dependable - {p[1]}))] += 1
+            cover[min(2, len(regular - {p[1]}))] += 1
             authors[p[1]] = authors.get(p[1], 0) + 1
         top_author = max(authors, key=authors.get) if authors else -1
+        # where the two approvals of the merged pull requests came from:
+        # regular reviewers alone, with other listed people, with unlisted
+        # people, or fewer than two on record
+        outcome = [0, 0, 0, 0]
+        for row, p in enumerate(prs):
+            if p[4] < start:
+                continue
+            who = approvers.get(row, set()) - {p[1]}
+            if len(who & regular) >= 2:
+                outcome[0] += 1
+            elif len(who & listed) >= 2:
+                outcome[1] += 1
+            elif len(who) >= 2:
+                outcome[2] += 1
+            else:
+                outcome[3] += 1
+        second = [max(0, p[7] - p[3]) / DAY for p in ready if p[7]]
         first_review = [max(0, p[6] - p[3]) / DAY for p in ready if p[6]]
-        to_merge = [max(0, p[4] - p[3]) / DAY for p in merged if p[3]]
-        unlisted = sorted(((n, logins[w]) for w, n in reviewed_by.items() if w not in roster),
-                          reverse=True)[:3]
+        # unlisted people who review here regularly
+        bar = max(5, len(ready) / 10)
+        candidates = sorted(((n, logins[w]) for w, n in reviewed_by.items()
+                             if w not in listed and n >= bar), reverse=True)
         out["w"][str(days)] = {
-            "ready": len(ready), "merged": len(merged),
-            "asks": asks, "answered": answered,
-            "asked_prs": len(per_pr), "silent_prs": sum(1 for n in per_pr.values() if not n),
-            "answers": sum(per_pr.values()),
-            "m_asks": m_asks, "m_answered": m_answered,
-            "active": active, "approvals": approvals, "listed_approvals": listed_approvals,
-            "dependable": len(dependable), "cover": cover,
+            "ready": len(ready),
+            "tiers": [tiers["regular"], tiers["occasional"], tiers["silent"], tiers["unrated"]],
+            "status": status_of(len(regular), cover),
+            "cover": cover, "outcome": outcome,
             "top_author": logins[top_author] if top_author >= 0 else None,
             "top_author_prs": authors.get(top_author, 0),
-            "top_share": round(max(reviewed_by.values()) / total_reviews, 3) if total_reviews else None,
+            "asked_prs": len(per_pr), "silent_prs": sum(1 for n in per_pr.values() if not n),
             "first_review": None if not first_review else round(median(first_review), 2),
-            "to_merge": None if not to_merge else round(median(to_merge), 2),
-            "unlisted": [[w, n] for n, w in unlisted],
+            "second_approval": None if not second else round(median(second), 2),
+            "candidates": [w for _n, w in candidates[:5]], "candidate_count": len(candidates),
         }
     return out
 

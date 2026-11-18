@@ -11,37 +11,44 @@ project policy.
 
 ## What the page shows
 
+The page sorts the listed people of an area into four groups for a period:
+
+- a **regular reviewer** answers at least half of five or more review requests;
+- an **occasional reviewer** took part, but less than that;
+- a **silent** one did not take part;
+- with fewer than five requests there is **too little to tell**.
+
+A pull request needs two approvals from people other than its author. It is
+**covered** when two regular reviewers are left besides its author; otherwise
+it relies on occasional or unlisted reviewers for an approval. An area whose
+two regular reviewers also write much of its code is not covered for their
+pull requests, so it takes three.
+
 There are two views.
 
 **All areas** compares the areas with each other, for whoever looks after the
-project as a whole: how many people are listed and how many of them review,
-how many pull requests arrive for each of those, how much of the approving is
-done by listed people, how many requests are answered, how many pull requests
-get no answer from the list, how long the first review takes and how many pull
-requests are waiting. Sort by any column, or use "Show first" to bring up the
-areas that need reviewers, answer least, or wait longest. A strip shows where
-every area sits on the column the table is sorted by. This view offers four
-fixed periods and one way of counting; its figures come from
-`data/summary.json`.
+project as a whole. Each area has a review cover in words (no regular
+reviewer, one, thin, covered), the make-up of its list, the pull requests
+arriving per week and per regular reviewer, the share of pull requests not
+covered, the share of merged pull requests whose two approvals both came from
+regular reviewers, the share nobody listed took part in, the time to the
+second approval, the pull requests waiting, and the number of people outside
+the list who review there regularly. Sort by any column, filter by cover, or
+use "Show first". A strip shows where every area sits on the column the table
+is sorted by. This view offers four fixed periods and one way of counting; its
+figures come from `data/summary.json`.
 
-**One area** is for the area's own maintainers:
-
-Pick an area and a period. For each Maintainer and Collaborator of the area
-the page shows the share of review requests they answered, and a line you can
-move: Collaborators below it would come off the list at that level. Below that
-it shows the flow through the area (pull requests opened and merged, time to
-the first review and to the merge) and who brings review work against who
-gives it.
-
-Both views also answer whether a pull request can get its two approvals from
-the list. A listed person is called dependable when they answer at least half
-of the requests they get; a pull request is short when fewer than two
-dependable people are left once its author is set aside. An area with two
-dependable people of whom one writes much of the code is short for that
-person's pull requests, so it takes three. The one-area view also lists the
-most active reviewers who are not on the list, with their standing in the
-repository (member of the organization, outside collaborator, neither), as
-candidates for it.
+**One area** is for the area's own maintainers. For each Maintainer and
+Collaborator it shows the share of review requests they answered, their group,
+and a line you can move: Collaborators below it would come off the list at
+that level. Below that: the review cover as a bar with a sentence naming who
+is counted and whose pull requests are short; where the two approvals of the
+merged pull requests actually came from; the most active reviewers who are not
+on the list, with their standing in the repository (member of the
+organization, outside collaborator, neither), as candidates for it; and the
+flow through the area (pull requests opened and merged, time to the first
+review, the second approval and the merge, and who brings review work against
+who gives it).
 
 Everything is counted in the browser from per-request records, so any date
 range and any combination of the counting options works without a new run.
