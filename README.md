@@ -78,7 +78,9 @@ members of the organization; and the
 flow through the area: the number of open pull requests over time, what came
 in and went out each week (opened, merged, closed without merging), the time
 to the first review, the second approval and the merge, and who brings review
-work against who gives it.
+work against who gives it: two split bars show who wrote the area's pull
+requests and who gave its approvals, one segment per person, coloured by
+whether the person is a Maintainer, a Collaborator or not listed.
 
 Everything is counted in the browser from per-request records, so any date
 range and any combination of the counting options works without a new run.

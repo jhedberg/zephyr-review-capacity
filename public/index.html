@@ -196,6 +196,11 @@ details.explain summary { cursor: pointer; font: 600 14px var(--font); color: va
 #overview thead th { vertical-align: bottom; max-width: 96px; white-space: normal; line-height: 1.35; }
 #overview thead th:first-child { max-width: none; }
 .cover .c3 { background: var(--below); }
+.cover.split { height: 32px; }
+.cover.split span { cursor: help; }
+.cover.split span.rest { opacity: 0.45; }
+.cover.split span:hover, .cover.split span:focus-visible { outline: 2px solid var(--ink-3); outline-offset: 1px; }
+.split-head { margin: 6px 0 -8px; font: 500 12px/1.3 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); }
 .tier { font: 500 10px var(--mono); letter-spacing: 0.05em; color: var(--ink-3); white-space: nowrap; }
 .tag { font: 500 10px var(--mono); letter-spacing: 0.05em; color: var(--ink-3); border: 1px solid var(--rule); border-radius: 3px; padding: 1px 5px; margin-left: 6px; white-space: nowrap; }
 .strip svg { display: block; width: 100%; height: auto; overflow: visible; }
@@ -396,6 +401,13 @@ details.explain summary { cursor: pointer; font: 600 14px var(--font); color: va
   <div class="panel">
     <h3>Who brings review work and who gives it</h3>
     <p class="note">The ten people who brought the most pull requests to review in this area and period. A merged pull request needs at least two approvals from others, so anyone under 2.0 in the last column takes more review out than they put in.</p>
+    <h4 class="split-head" id="split-authors-head">Who wrote the pull requests</h4>
+    <div class="cover split" id="split-authors" role="img"></div>
+    <div class="keys" id="split-authors-keys"></div>
+    <h4 class="split-head" id="split-approvals-head">Who gave the approvals</h4>
+    <div class="cover split" id="split-approvals" role="img"></div>
+    <div class="keys" id="split-approvals-keys"></div>
+    <p class="note">Each segment is one person, coloured by whether they are a Maintainer, a Collaborator or not listed for the area; point at a segment for the name. People with less than a fiftieth of the total are drawn together in a paler segment at the end of their group. The table has the ten people who brought the most.</p>
     <div class="scroll"><table id="balance"></table></div>
   </div>
 </section>
@@ -803,6 +815,8 @@ function render() {
     if (p[4] >= F && p[4] < T) b.merged++;
     bring.set(p[1], b);
   }
+  drawSplit("split-authors", new Map([...bring.entries()].filter(([, b]) => b.brought).map(([i, b]) => [i, b.brought])), "pull requests that became ready for review", "wrote");
+  drawSplit("split-approvals", new Map([...stat.entries()].filter(([, st]) => st.approved).map(([i, st]) => [i, st.approved])), "approvals", "gave");
   const rows = [...bring.entries()].filter(([, b]) => b.brought).sort((a, b) => b[1].brought - a[1].brought).slice(0, 10);
   const t = $("balance"); t.textContent = "";
   const th = el("thead"), hr = el("tr");
@@ -1010,6 +1024,39 @@ function attachDetail(cell, key, r) {
     return lines;
   });
 }
+/* Parts of a whole: one segment per person, in the order Maintainers, Collaborators, not listed, the
+   largest first within a group. The colour says the group; the name is in the detail of a segment. */
+function drawSplit(id, counts, noun, verb) {
+  const bar = $(id), keys = $(id + "-keys"), L = AREA.logins; bar.textContent = ""; keys.textContent = "";
+  const total = [...counts.values()].reduce((x, y) => x + y, 0);
+  $(id + "-head").hidden = bar.hidden = !total;
+  if (!total) { keys.textContent = "No " + noun + " in this period."; return; }
+  const groupOf = (i) => AREA.maintainers.includes(L[i]) ? 0 : (AREA.roster.has(L[i]) ? 1 : 2);
+  const groups = [["c2", "--accent", "Maintainer", []], ["c1", "--series-2", "Collaborator", []], ["c0", "--ink", "not listed", []]];
+  for (const [i, n] of counts) groups[groupOf(i)][3].push([L[i], n]);
+  const said = [];
+  for (const [cls, token, label, list] of groups) {
+    list.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    const sum = list.reduce((x, [, n]) => x + n, 0), own = list.filter(([, n]) => n / total >= 0.02), rest = list.slice(own.length);
+    const add = (extra, n, title, lines) => {
+      const seg = el("span", cls + extra); seg.style.flex = n + " 1 0"; seg.tabIndex = 0; bar.appendChild(seg);
+      attachTip(seg, title, () => lines);
+    };
+    for (const [who, n] of own) add("", n, who, [["", (label === "not listed" ? "Not listed for the area" : label) + ". " + n + " of " + total + " " + noun + " (" + pc(n / total) + ")."]]);
+    if (rest.length) {
+      const n = rest.reduce((x, [, m]) => x + m, 0);
+      add(" rest", n, rest.length + (rest.length === 1 ? " more person, " : " more people, ") + label.toLowerCase().replace("maintainer", "Maintainers").replace("collaborator", "Collaborators"),
+        [["", "Together " + n + " of " + total + " " + noun + " (" + pc(n / total) + "), each less than a fiftieth."], ["", rest.slice(0, 12).map(([who, m]) => who + " " + m).join(", ") + (rest.length > 12 ? ", ..." : "")]]);
+    }
+    if (!list.length && !(label === "Maintainer" ? AREA.maintainers : label === "Collaborator" ? AREA.collaborators : [0]).length) continue;
+    const k = el("span"), sw = el("i"); sw.style.background = css(token);
+    k.appendChild(sw); k.appendChild(document.createTextNode({ Maintainer: "Maintainers", Collaborator: "Collaborators", "not listed": "Not listed" }[label] + ": " + pc(sum / total) + " (" + sum + ", " + list.length + (list.length === 1 ? " person" : " people") + ")"));
+    keys.appendChild(k);
+    if (sum) said.push(pc(sum / total) + " " + label.toLowerCase());
+  }
+  bar.setAttribute("aria-label", "Who " + verb + " the " + total + " " + noun + ": " + said.join(", "));
+}
+
 function attachTip(cell, title, getLines) {
   const tip = $("tip");
   const show = () => {
