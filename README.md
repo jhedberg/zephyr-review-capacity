@@ -34,8 +34,13 @@ covered, the share of merged pull requests whose two approvals both came from
 regular reviewers, the share nobody listed took part in, the time to the
 second approval, the pull requests waiting, and the number of people outside
 the list who review there regularly. Sort by any column, filter by cover, or
-use "Show first". A strip shows where every area sits on the column the table
-is sorted by. This view offers four fixed periods and one way of counting; its
+use "Show first"; a legend above the table defines each choice. The cover state
+carries a fixed colour (red for no or one regular reviewer, green for
+covered). In the three columns with a real spread (pull requests per regular
+reviewer, time to the second approval, pull requests waiting) a mark shows the
+worst and the best tenth of the areas in scope; the percentage columns are not
+coloured, because most areas sit at 0% or 100% there. A strip shows where
+every area sits on the column the table is sorted by. This view offers four fixed periods and one way of counting; its
 figures come from `data/summary.json`.
 
 **One area** is for the area's own maintainers. For each Maintainer and

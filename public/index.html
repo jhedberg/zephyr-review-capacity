@@ -10,7 +10,7 @@
 :root {
   --bg: #f4f6f9; --surface: #ffffff; --ink: #131820; --ink-2: #485262; --ink-3: #6f7a8b;
   --rule: #dde2ea; --track: #e6eaf0; --accent: #2a78d6; --accent-ink: #1c5cab;
-  --series-2: #eb6834; --below: #b8c0cc; --warn-bg: #fff4d6; --warn-ink: #6b4a00;
+  --series-2: #eb6834; --good: #0ca30c; --bad: #d03b3b; --below: #b8c0cc; --warn-bg: #fff4d6; --warn-ink: #6b4a00;
   --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 }
@@ -119,7 +119,23 @@ ul.plain { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
 #overview td.area { min-width: 150px; }
 #overview td.area button { font: 500 14px var(--font); color: var(--accent-ink); background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
 #overview td.area button:hover { text-decoration: underline; }
-#overview td.status { white-space: nowrap; color: var(--ink-2); }
+#overview td.status { white-space: nowrap; color: var(--ink); }
+.state { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.state::before { content: ""; width: 10px; height: 10px; border-radius: 2px; border: 2px solid var(--below); background: var(--below); }
+.state.none::before { border-color: var(--bad); background: var(--bad); }
+.state.single::before { border-color: var(--bad); background: transparent; }
+.state.covered::before { border-color: var(--good); background: var(--good); }
+#overview td.worst::before { content: "\25C6"; color: var(--bad); font-size: 10px; margin-right: 5px; }
+#overview td.best::before { content: "\25CF"; color: var(--good); font-size: 10px; margin-right: 5px; }
+.mark-worst::before { content: "\25C6"; color: var(--bad); font-size: 11px; margin-right: 5px; }
+.mark-best::before { content: "\25CF"; color: var(--good); font-size: 11px; margin-right: 5px; }
+details.explain { border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); padding: 12px 0; }
+details.explain summary { cursor: pointer; font: 600 14px var(--font); color: var(--ink-2); }
+.defs { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px 32px; margin-top: 14px; }
+.defs h4 { margin: 0 0 8px; font: 500 12px/1.3 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); }
+.defs dl { margin: 0; display: grid; gap: 8px; font-size: 14px; }
+.defs dt { font-weight: 600; color: var(--ink); }
+.defs dd { margin: 2px 0 0; color: var(--ink-2); }
 #overview thead th { vertical-align: bottom; max-width: 96px; white-space: normal; line-height: 1.35; }
 #overview thead th:first-child { max-width: none; }
 .cover .c3 { background: var(--below); }
@@ -159,6 +175,39 @@ ul.plain { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
     <div class="controls">
       <div class="checks"><label><input type="checkbox" id="hide-shared"> Hide areas that only borrow another area's label (their pull requests are mostly not their own)</label></div>
     </div>
+    <details class="explain" id="explain" open>
+      <summary>What the choices and colours mean</summary>
+      <div class="defs">
+        <div>
+          <h4>Review cover: the state of an area</h4>
+          <dl>
+            <div><dt><span class="state none">No regular</span></dt><dd>Nobody on the list answers at least half of the review requests they get.</dd></div>
+            <div><dt><span class="state single">One regular</span></dt><dd>One listed person does. No pull request can have two regular reviewers.</dd></div>
+            <div><dt><span class="state thin">Thin</span></dt><dd>Two or more do, but they also write much of the code: a fifth or more of the pull requests have fewer than two of them besides the author.</dd></div>
+            <div><dt><span class="state covered">Covered</span></dt><dd>Nearly every pull request has two regular reviewers besides its author.</dd></div>
+          </dl>
+        </div>
+        <div>
+          <h4>Show first: the order of the table</h4>
+          <dl>
+            <div><dt>By cover state</dt><dd>Groups the areas by the four states on the left, the weakest state first, and the busiest area first within a state.</dd></div>
+            <div><dt>Largest share not covered</dt><dd>Orders by a number: the percentage of pull requests with fewer than two regular reviewers besides the author. Two areas in the same state can be far apart here, such as 45% and 100%.</dd></div>
+            <div><dt>Most per regular reviewer</dt><dd>Pull requests arriving each week, divided by the regular reviewers. Areas with none come first.</dd></div>
+            <div><dt>Slowest second approval</dt><dd>Median days from ready for review to the second approval.</dd></div>
+            <div><dt>Most waiting</dt><dd>Open, ready pull requests with no review after two weeks.</dd></div>
+            <div><dt>Most candidates</dt><dd>People not on the list who review a tenth or more of the area's pull requests.</dd></div>
+          </dl>
+        </div>
+        <div>
+          <h4>Colours</h4>
+          <dl>
+            <div><dt>On the cover state</dt><dd>Red means no or one regular reviewer, green means covered, grey means thin. These are fixed meanings.</dd></div>
+            <div><dt><span class="mark-worst">Worst tenth</span> and <span class="mark-best">best tenth</span></dt><dd>In "PRs/week per regular", "2nd approval" and "Waiting", the marks compare an area with the other areas in scope. A mark is left out when too many areas share the value for a tenth to mean anything.</dd></div>
+            <div><dt>No colour elsewhere</dt><dd>In the percentage columns most areas sit at 0% or 100%, so a best or worst tenth would be arbitrary there.</dd></div>
+          </dl>
+        </div>
+      </div>
+    </details>
     <div class="tiles" id="all-tiles"></div>
     <div>
       <h3 id="strip-title"></h3>
@@ -166,7 +215,7 @@ ul.plain { margin: 0; padding-left: 20px; display: flex; flex-direction: column;
       <div class="strip chart" id="strip"></div>
     </div>
     <div class="scroll"><table id="overview"></table></div>
-    <p class="note">A regular reviewer is a listed person who answers at least half of five or more review requests in the period; an occasional one took part but less than that; a silent one not at all. Listed shows those three counts, and a question mark counts people with too few requests to tell. Review cover: no regular reviewer, one, thin (two or more, but they write so much of the code that a fifth or more of the pull requests have fewer than two of them besides the author), or covered. Not covered: the share of pull requests with fewer than two regular reviewers besides their author, which therefore rely on occasional or unlisted reviewers for an approval. Regulars alone: the share of merged pull requests whose two approvals both came from regular reviewers. No listed reviewer: pull requests on which nobody listed took part. 2nd approval: median days from ready to the second approval. Candidates: people not on the list who reviewed a tenth of the area's pull requests or more.</p>
+    <p class="note">Columns. Listed: the people on the list, then how many of them are regular, occasional and silent reviewers; a question mark counts people with too few requests to tell. A regular reviewer answers at least half of five or more review requests in the period; an occasional one took part but less than that. Not covered: the share of pull requests with fewer than two regular reviewers besides their author. Regulars alone: the share of merged pull requests whose two approvals both came from regular reviewers. No listed reviewer: pull requests on which nobody listed took part. Counted with a comment as an answer and with the excuse rule on; open an area for the other ways of counting.</p>
   </div>
 </section>
 </div>
@@ -552,7 +601,7 @@ const COLS = [
   { key: "waiting", label: "Waiting >2 wk", first: -1, fmt: (v) => v },
   { key: "candidates", label: "Candidates", first: -1, fmt: (v) => v },
 ];
-const SORTS = [["rank", 1, "Weakest cover"], ["perRegular", -1, "Most per regular reviewer"], ["notCovered", -1, "Least covered"], ["second", -1, "Slowest second approval"], ["waiting", -1, "Most waiting"], ["candidates", -1, "Most candidates"]];
+const SORTS = [["rank", 1, "By cover state"], ["notCovered", -1, "Largest share not covered"], ["perRegular", -1, "Most per regular reviewer"], ["second", -1, "Slowest second approval"], ["waiting", -1, "Most waiting"], ["candidates", -1, "Most candidates"]];
 
 function areaRows() {
   const days = state.days || 90, weeks = days / 7;
@@ -601,6 +650,17 @@ function renderAll() {
 
   drawStrip(rows, col);
 
+  /* best and worst tenth of the areas in scope, in the columns with a real spread */
+  const marks = {};
+  for (const key of ["perRegular", "second", "waiting"]) {
+    const v = inScope.map((r) => r[key]).filter((x) => x != null && x !== Infinity).sort((a, b) => a - b);
+    if (v.length < 20) continue;
+    const lo = v[Math.floor(v.length * 0.1)], hi = v[Math.ceil(v.length * 0.9) - 1];
+    const few = (test) => v.filter(test).length <= v.length * 0.2;
+    marks[key] = { best: few((x) => x <= lo) ? lo : null, worst: few((x) => x >= hi) ? hi : null };
+  }
+  const markOf = (key, x) => { const m = marks[key]; if (!m || x == null || x === Infinity) return ""; return m.worst != null && x >= m.worst ? " worst" : (m.best != null && x <= m.best ? " best" : ""); };
+
   const table = $("overview"); table.textContent = "";
   const th = el("thead"), hr = el("tr");
   for (const c of COLS) {
@@ -618,7 +678,10 @@ function renderAll() {
     if (r.shares) td.appendChild(el("span", "tag", "BORROWED LABEL"));
     tr.appendChild(td);
     for (const c of COLS.slice(1)) {
-      const x = r[c.key], cell = el("td", c.key === "rank" ? "status" : "n", x == null ? "n/a" : String(c.fmt(x, r)));
+      const x = r[c.key], mark = markOf(c.key, x);
+      const cell = el("td", c.key === "rank" ? "status" : "n" + mark, c.key === "rank" || x == null ? (x == null ? "n/a" : "") : String(c.fmt(x, r)));
+      if (c.key === "rank") cell.appendChild(el("span", "state " + r.status, STATUS[r.status]));
+      if (mark) cell.title = mark === " worst" ? "Among the worst tenth of the areas in scope" : "Among the best tenth of the areas in scope";
       if (c.key === "candidates" && r.candidateNames.length) cell.title = r.candidateNames.join(", ");
       tr.appendChild(cell);
     }
@@ -727,12 +790,14 @@ async function start() {
     else { $("stamp").textContent += " · updated since " + oldest; }
   }
   [30, 90, 180, 365].forEach((d) => { const b = el("button", null, "Last " + d + " days"); b.type = "button"; b.dataset.days = d; b.addEventListener("click", () => { state.days = d; renderAll(); }); $("all-presets").appendChild(b); });
-  [["", "All"], ["none", "No regular reviewer"], ["single", "One"], ["thin", "Thin"], ["covered", "Covered"]].forEach(([st, label]) => { const b = el("button", null, label); b.type = "button"; b.dataset.status = st; b.addEventListener("click", () => { state.status = st; renderAll(); }); $("statuses").appendChild(b); });
+  [["", "All"], ["none", "No regular"], ["single", "One regular"], ["thin", "Thin"], ["covered", "Covered"]].forEach(([st, label]) => { const b = el("button", null, label); b.type = "button"; b.dataset.status = st; b.addEventListener("click", () => { state.status = st; renderAll(); }); $("statuses").appendChild(b); });
   SORTS.forEach(([key, dir, label]) => { const b = el("button", null, label); b.type = "button"; b.dataset.key = key; b.dataset.dir = dir; b.addEventListener("click", () => { state.sort = key; state.dir = dir; renderAll(); }); $("sorts").appendChild(b); });
   [5, 10, 25, 50, 100, 250].forEach((n) => { const o = el("option", null, String(n)); o.value = n; $("min-prs").appendChild(o); });
   $("min-prs").value = state.minPrs; $("min-prs").addEventListener("change", () => { state.minPrs = +$("min-prs").value; renderAll(); });
   $("hide-shared").checked = state.hideShared; $("hide-shared").addEventListener("change", () => { state.hideShared = $("hide-shared").checked; renderAll(); });
   $("all-filter").value = state.allFilter; $("all-filter").addEventListener("input", () => { state.allFilter = $("all-filter").value; renderAll(); });
+  try { if (localStorage.getItem("explain") === "closed") $("explain").open = false; } catch (e) { /* storage is optional */ }
+  $("explain").addEventListener("toggle", () => { try { localStorage.setItem("explain", $("explain").open ? "open" : "closed"); } catch (e) { /* storage is optional */ } });
   $("tab-all").addEventListener("click", () => { state.view = "all"; showView(); });
   $("tab-area").addEventListener("click", () => { state.view = "area"; showView(); render(); });
   await loadArea(state.area);
