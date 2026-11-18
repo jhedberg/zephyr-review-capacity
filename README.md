@@ -35,6 +35,9 @@ project as a whole. Each area has:
 - how the Maintainer's reviewing compares with everyone else's;
 - the pull requests arriving per week for each regular reviewer;
 - the share of pull requests not covered;
+- the share of the reviews that came from people who are not listed for the
+  area, with the number of people behind it: cover describes the list, not
+  how much review an area receives;
 - the number of open pull requests, its change over the period and a small
   line of its course;
 - the time to the second approval;

@@ -270,6 +270,7 @@ details.explain summary { cursor: pointer; font: 600 14px var(--font); color: va
             <div><dt><span class="state single">One regular</span></dt><dd>One listed person does. No pull request can have two regular reviewers.</dd></div>
             <div><dt><span class="state thin">Thin</span></dt><dd>Two or more do, but they also write much of the code: a fifth or more of the pull requests have fewer than two of them besides the author.</dd></div>
             <div><dt><span class="state covered">Covered</span></dt><dd>Nearly every pull request has two regular reviewers besides its author.</dd></div>
+            <div><dt>What cover does not say</dt><dd>These states describe what the listed people supply, not how much review an area receives. Some areas, such as Boards/SoCs and Devicetree Bindings, list few people and are reviewed by hundreds who are listed for a platform or not at all: see "Reviews from outside the list".</dd></div>
           </dl>
           <h4 style="margin-top:16px">Maintainer: reviews, compared with others</h4>
           <dl>
@@ -283,6 +284,7 @@ details.explain summary { cursor: pointer; font: 600 14px var(--font); color: va
           <h4>Show first: the order of the table</h4>
           <dl>
             <div><dt>By cover state</dt><dd>Groups the areas by the four states on the left, the weakest state first, and the busiest area first within a state.</dd></div>
+            <div><dt>Most reviewed from outside the list</dt><dd>The share of the reviews in the period that came from people who are not listed for the area.</dd></div>
             <div><dt>Largest share not covered</dt><dd>Orders by a number: the percentage of pull requests with fewer than two regular reviewers besides the author. Two areas in the same state can be far apart here, such as 45% and 100%.</dd></div>
             <div><dt>Most per regular reviewer</dt><dd>Pull requests arriving each week, divided by the regular reviewers. Areas with no regular reviewer have no such figure and follow at the end, the busiest first; "No regular" under Review cover shows only those.</dd></div>
             <div><dt>Maintainer behind</dt><dd>Orders by the Maintainer state on the left, areas without a Maintainer first.</dd></div>
@@ -312,7 +314,7 @@ details.explain summary { cursor: pointer; font: 600 14px var(--font); color: va
     <p class="note">Point at a figure in the table, or tap it, for the names and counts behind it.</p>
     <p class="warn" id="overview-hint" hidden>The table is wider than this window, so columns on the right are out of view. Scroll it sideways: the scroll bar stays at the bottom of the window, and Shift with the mouse wheel works too. The Area column stays in place.</p>
     <div class="scrollwrap"><div class="scroll"><table id="overview"></table></div><div class="xbar" id="overview-xbar" aria-hidden="true" hidden><i></i></div></div>
-    <p class="note">Columns. Listed: the people on the list, then how many of them are regular, occasional and silent reviewers; a question mark counts people with too few requests to tell. Maintainer: how the Maintainer's reviewing compares with everyone else's. Not covered: the share of pull requests with fewer than two regular reviewers besides their author. Waiting on assignee: open pull requests with two approvals but none from their assignee. Counted with a comment as an answer and with the excuse rule on; open an area for the other ways of counting.</p>
+    <p class="note">Columns. Listed: the people on the list, then how many of them are regular, occasional and silent reviewers; a question mark counts people with too few requests to tell. Maintainer: how the Maintainer's reviewing compares with everyone else's. Not covered: the share of pull requests with fewer than two regular reviewers besides their author. Reviews from outside the list: the share of the period's reviews given by people who are not listed for the area. Waiting on assignee: open pull requests with two approvals but none from their assignee. Counted with a comment as an answer and with the excuse rule on; open an area for the other ways of counting.</p>
   </div>
 </section>
 </div>
@@ -432,7 +434,7 @@ const median = (v) => { if (!v.length) return null; v = v.slice().sort((a, b) =>
 const profile = (login) => { const a = el("a", null, login); a.href = "https://github.com/" + login; a.target = "_blank"; a.rel = "noopener"; return a; };
 const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
-const FORMAT = 7;  /* must match FORMAT in build.py */
+const FORMAT = 8;  /* must match FORMAT in build.py */
 let INDEX = null, AREA = null, SUMMARY = null, VERSION = "";
 const params = new URLSearchParams(location.search);
 const state = {
@@ -808,13 +810,14 @@ const COLS = [
   { key: "mrank", label: "Maintainer", first: 1, fmt: (v, r) => MSTATE[r.mstate] },
   { key: "perRegular", label: "PRs/week per regular", first: -1, fmt: (v) => v === Infinity ? "no regular" : f1(v) },
   { key: "notCovered", label: "Not covered", first: -1, fmt: pc },
+  { key: "outsideShare", label: "Reviews from outside the list", first: -1, fmt: pc },
   { key: "openChange", label: "Open now (change)", first: -1, fmt: (v, r) => r.openNow + " (" + (v > 0 ? "+" : "") + v + ")", plain: (v) => (v > 0 ? "+" : "") + f1(v) },
   { key: "second", label: "2nd approval (d)", first: -1, fmt: f1 },
   { key: "waiting", label: "Waiting >2 wk", first: -1, fmt: (v) => v },
   { key: "onAssignee", label: "Waiting on assignee", first: -1, fmt: (v) => v },
   { key: "candidates", label: "Candidates", first: -1, fmt: (v) => v },
 ];
-const SORTS = [["rank", 1, "By cover state"], ["notCovered", -1, "Largest share not covered"], ["mrank", 1, "Maintainer behind"], ["perRegular", -1, "Most per regular reviewer"], ["openChange", -1, "Fastest growing queue"], ["second", -1, "Slowest second approval"], ["waiting", -1, "Most waiting"], ["onAssignee", -1, "Most waiting on the assignee"], ["candidates", -1, "Most candidates"]];
+const SORTS = [["rank", 1, "By cover state"], ["notCovered", -1, "Largest share not covered"], ["outsideShare", -1, "Most reviewed from outside the list"], ["mrank", 1, "Maintainer behind"], ["perRegular", -1, "Most per regular reviewer"], ["openChange", -1, "Fastest growing queue"], ["second", -1, "Slowest second approval"], ["waiting", -1, "Most waiting"], ["onAssignee", -1, "Most waiting on the assignee"], ["candidates", -1, "Most candidates"]];
 
 function areaRows() {
   const days = state.days || 90, weeks = days / 7;
@@ -826,6 +829,7 @@ function areaRows() {
       mstate: w.maintainer.state, mrank: MRANK[w.maintainer.state], onAssignee: a.on_assignee, onAssigneePrs: a.on_assignee_prs,
       perRegular: w.tiers[0] ? w.ready / weeks / w.tiers[0] : (w.ready ? Infinity : null),
       notCovered: covered >= 5 ? (w.cover[0] + w.cover[1]) / covered : null,
+      outsideShare: w.reviews[0] >= 5 ? w.reviews[1] / w.reviews[0] : null,
       second: w.second_approval, waiting: a.waiting, candidates: w.candidate_count, w, days,
       openNow: a.open[a.open.length - 1], openChange: a.open[a.open.length - 1] - w.open_start,
       trend: a.open.slice(-(Math.round(days / 7) + 1)),
@@ -954,6 +958,13 @@ function detailLines(key, r) {
     case "regular": return [["Regular", list(w.people[0])], ["Occasional", list(w.people[1])], ["Silent", list(w.people[2])]].concat(w.people[3].length ? [["Too few requests to tell", list(w.people[3])]] : []);
     case "perWeek": return [["", w.ready + " pull requests became ready for review in " + r.days + " days."]];
     case "perRegular": return [["", f1(r.perWeek) + " pull requests a week, " + (w.tiers[0] ? "divided by " + w.tiers[0] + " regular reviewer" + (w.tiers[0] > 1 ? "s" : "") + ": " + list(w.people[0]) : "and no regular reviewer") + "."]];
+    case "outsideShare": {
+      const [people, unlisted, steady] = w.reviewers, [all, fromOutside] = w.reviews;
+      const lines = [["", people + " people reviewed pull requests of this area in the period: " + (people - unlisted) + " of the " + r.listed + " listed and " + unlisted + " who are not listed" + (unlisted ? ", " + steady + " of them with five reviews or more" : "") + "."]];
+      lines.push(["", "People who are not listed gave " + fromOutside + " of the " + all + " reviews" + (all ? " (" + pc(fromOutside / all) + ")" : "") + ". Many of them are listed for another area the pull request also belongs to, such as a platform."]);
+      if (w.outside.length) lines.push(["Most active", w.outside.map(([who, n]) => who + " " + n).join(", ")]);
+      return lines;
+    }
     case "notCovered": return [["", "Of " + covered + " pull requests, by regular reviewers besides the author:"], ["Two or more", String(w.cover[2])], ["One", String(w.cover[1])], ["None", String(w.cover[0])], ["", "Of " + merged + " merged, " + w.outcome[0] + " got both approvals from regular reviewers, " + w.outcome[1] + " needed an occasional listed one and " + w.outcome[2] + " someone not listed."]];
     case "regAlone": return [["", "The two approvals of the " + merged + " merged pull requests came from:"], ["Regular reviewers alone", String(w.outcome[0])], ["With an occasional listed reviewer", String(w.outcome[1])], ["With someone not listed", String(w.outcome[2])]].concat(w.outcome[3] ? [["Fewer than two on record", String(w.outcome[3])]] : []);
     case "noListed": return [["", w.silent_prs + " of the " + w.asked_prs + " pull requests that asked the list got no review or comment from anyone listed."]];
@@ -1009,7 +1020,7 @@ function drawStrip(rows, col) {
   const pts = rows.filter((r) => r[col.key] != null);
   if (!pts.length) return;
   const finite = pts.map((r) => r[col.key]).filter((v) => v !== Infinity).sort((a, b) => a - b);
-  const isShare = ["notCovered"].includes(col.key);
+  const isShare = ["notCovered", "outsideShare"].includes(col.key);
   const cap = isShare ? 1 : (finite.length ? finite[Math.min(finite.length - 1, Math.floor(finite.length * 0.97))] || 1 : 1);
   const hasInf = pts.some((r) => r[col.key] === Infinity);
   const W = host.clientWidth || 600, H = 74, l = 8, r = hasInf ? 110 : 16;

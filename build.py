@@ -203,7 +203,7 @@ def build_area(name: str, area: dict, prs: list[PR], maintains: dict, now: int,
 
 # Version of the data files' layout. The page carries the same number and
 # refuses to mix a page of one version with data of another.
-FORMAT = 7
+FORMAT = 8
 WINDOWS = (30, 90, 180, 365)
 WAITING = 14 * DAY
 REGULAR = 0.5      # a regular reviewer answers at least this share of requests
@@ -398,6 +398,12 @@ def summarize(data: dict, now: int) -> dict:
             "candidates": [[w, n, ahead] for n, w, ahead in candidates[:8]],
             "candidate_count": len(candidates),
             "outside": [[w, n, ahead] for n, w, ahead in outside[:5]],
+            # everyone who reviewed here: people, those not listed, those not
+            # listed with enough reviews to count; then the reviews themselves
+            "reviewers": [len(reviewed_by), sum(1 for w in reviewed_by if w not in listed),
+                          len(outside)],
+            "reviews": [sum(reviewed_by.values()),
+                        sum(n for w, n in reviewed_by.items() if w not in listed)],
         }
     return out
 
