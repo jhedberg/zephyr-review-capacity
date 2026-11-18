@@ -24,6 +24,7 @@ import argparse
 import datetime as dt
 import gzip
 import json
+import re
 import subprocess
 import sys
 import time
@@ -59,7 +60,7 @@ query($owner: String!, $name: String!, $number: Int!) {
       reviewsTail: reviews(last: 100) {
         nodes { id author { login } authorAssociation state submittedAt }
       }
-      comments(first: 100) { nodes { author { login } createdAt } }
+      comments(first: 100) { nodes { author { login } createdAt body } }
       timelineItems(first: 200, itemTypes: [REVIEW_REQUESTED_EVENT,
                                             REVIEW_REQUEST_REMOVED_EVENT,
                                             READY_FOR_REVIEW_EVENT,
@@ -72,6 +73,7 @@ query($owner: String!, $name: String!, $number: Int!) {
           }
           ... on ReviewRequestRemovedEvent {
             createdAt
+            actor { login }
             requestedReviewer { ... on User { login } }
           }
           ... on ReadyForReviewEvent { createdAt }
@@ -89,7 +91,10 @@ REVIEW_STATE = {"APPROVED": "A", "CHANGES_REQUESTED": "R", "COMMENTED": "C",
 # organization, C an outside collaborator, N neither.
 ASSOCIATION = {"MEMBER": "M", "OWNER": "M", "COLLABORATOR": "C"}
 # Version of the cached record; older records are fetched again.
-SCHEMA = 3
+SCHEMA = 4
+# scripts/ci/set_assignees.py in the Zephyr tree marks its comment with this
+MENTION_MARKER = "set_assignees: reviewer-mention"
+MENTION = re.compile(r"@([A-Za-z0-9][A-Za-z0-9-]*)")
 
 
 class Budget:
@@ -164,12 +169,23 @@ def reduce_pr(pr: dict) -> dict:
         kind = ev["__typename"]
         if kind in ("ReviewRequestedEvent", "ReviewRequestRemovedEvent"):
             who = login(ev, "requestedReviewer")
-            if who:
-                requests.append([minutes(ev["createdAt"]), who,
-                                 1 if kind == "ReviewRequestedEvent" else 0])
+            if who and kind == "ReviewRequestedEvent":
+                requests.append([minutes(ev["createdAt"]), who, 1])
+            elif who:
+                # a removal, and whether the person removed themselves (the
+                # assigner then never asks them again) or someone else did
+                requests.append([minutes(ev["createdAt"]), who, 0,
+                                 1 if login(ev, "actor") == who else 0])
         else:
             drafts.append([minutes(ev["createdAt"]),
                            1 if kind == "ConvertToDraftEvent" else 0])
+    # People the assigner could not add to the review request (they are not
+    # repository collaborators) are asked in a comment it keeps up to date.
+    mentions = []
+    for c in pr["comments"]["nodes"]:
+        if MENTION_MARKER in (c.get("body") or ""):
+            names = c["body"].split(MENTION_MARKER, 1)[1].strip().split("\n\n", 1)[0]
+            mentions += [[minutes(c["createdAt"]), who] for who in MENTION.findall(names)]
     return {
         "n": pr["number"], "t": pr["title"], "a": login(pr),
         "c": minutes(pr["createdAt"]), "cl": minutes(pr["closedAt"]),
@@ -183,7 +199,7 @@ def reduce_pr(pr: dict) -> dict:
         "v": SCHEMA,
         "cm": sorted([minutes(c["createdAt"]), login(c)]
                      for c in pr["comments"]["nodes"] if login(c)),
-        "rq": sorted(requests), "dr": sorted(drafts),
+        "rq": sorted(requests), "dr": sorted(drafts), "mn": sorted(mentions),
         "x": 1 if pr["reviews"]["totalCount"] > 200 else 0,
     }
 

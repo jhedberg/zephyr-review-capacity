@@ -180,7 +180,7 @@ details.explain summary { cursor: pointer; font: 600 14px var(--font); color: va
       <div class="field"><span>Review cover</span><div class="seg" id="statuses" role="group" aria-label="Review cover"></div></div>
     </div>
     <div class="controls">
-      <div class="checks"><label><input type="checkbox" id="hide-shared"> Hide areas that only borrow another area's label (their pull requests are mostly not their own)</label></div>
+      <div class="checks"><label><input type="checkbox" id="hide-shared"> Hide areas whose pull requests are mostly not their own: meta areas (Documentation, Tests, Samples and the like) and areas that only borrow another area's label</label></div>
     </div>
     <details class="explain" id="explain" open>
       <summary>What the terms, choices and colours mean</summary>
@@ -332,12 +332,14 @@ details.explain summary { cursor: pointer; font: 600 14px var(--font); color: va
   <h2>How this is counted</h2>
   <ul class="plain">
     <li>An area is a section of MAINTAINERS.yml; its pull requests are those carrying the area's own label. Areas that share a label share their pull requests.</li>
+    <li>Review requests come from the project's assigner (scripts/ci/set_assignees.py): when a pull request is out of draft it asks every Maintainer and Collaborator of every area the changed files belong to, without a cap. Someone it cannot formally request, because they are not a repository collaborator, is asked with an @-mention in a comment; that counts as a request here. It does not ask someone who has reviewed already, so a listed person's review without a request counts as asked and answered.</li>
     <li>A request counts once per person and pull request, on the day of the first request. It counts as answered when the person reviews at or after the request and before the end of the period, or comments if that option is on.</li>
-    <li>Not counted for or against anyone: the person's own pull requests, requests withdrawn without an answer, pull requests closed with less than three ready days after the request, and open ones with less than seven ready days since the request. Draft time is not ready time.</li>
+    <li>Not counted for or against anyone: the person's own pull requests, requests withdrawn without an answer (shown as declined when the person withdrew it themselves, after which the assigner does not ask them again), pull requests closed with less than three ready days after the request, and open ones with less than seven ready days since the request. Draft time is not ready time.</li>
     <li>With the excuse option on, a miss is also not counted when the pull request closed within seven days of the request or two other people had approved it within seven days.</li>
     <li>People with fewer than five countable requests are not judged. The line never takes a Maintainer off.</li>
     <li>Approved counts the pull requests the person first approved in the period, asked or not. Bot accounts are left out everywhere.</li>
-    <li>A regular reviewer is a listed person who answers at least half of five or more requests in the period. An occasional reviewer took part but is not regular; a silent one did not take part; with fewer than five requests there is too little to tell. A pull request is not covered when fewer than two regular reviewers are left besides its author. An area whose label is named after another area (a West project using "area: Tests", say) sees that area's pull requests, so its figures are not its own; such areas are hidden there unless asked for.</li>
+    <li>A regular reviewer is a listed person who answers at least half of five or more requests in the period. An occasional reviewer took part but is not regular; a silent one did not take part; with fewer than five requests there is too little to tell. A pull request is not covered when fewer than two regular reviewers are left besides its author. An area whose label is named after another area (a West project using "area: Tests", say) sees that area's pull requests, so its figures are not its own. The same holds for the areas MAINTAINERS.yml marks as meta (Documentation, Tests, Samples, Release, Benchmarks): the assigner applies their label and asks their people on any pull request that touches their files, and itself never counts them as short of reviewers. Both kinds are hidden under "All areas" unless asked for.</li>
+    <li>The assignee is picked by the assigner as well: a Maintainer, other than the author, of the non-platform area with the most changed files, with platform areas as a fallback and meta areas only when nothing else is touched. People change or add assignees by hand afterwards; the page uses the assignees a pull request has now.</li>
     <li>A period that includes a holiday season lowers everyone's rate. Compare like with like before drawing a conclusion about a person.</li>
     <li>The numbers come from public GitHub data and are refreshed by a script; see the <a id="repo-link" href="https://github.com/jhedberg/zephyr-review-capacity">source</a> for the exact rules.</li>
   </ul>
@@ -358,7 +360,7 @@ const median = (v) => { if (!v.length) return null; v = v.slice().sort((a, b) =>
 const profile = (login) => { const a = el("a", null, login); a.href = "https://github.com/" + login; a.target = "_blank"; a.rel = "noopener"; return a; };
 const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
-const FORMAT = 4;  /* must match FORMAT in build.py */
+const FORMAT = 5;  /* must match FORMAT in build.py */
 let INDEX = null, AREA = null, SUMMARY = null, VERSION = "";
 const params = new URLSearchParams(location.search);
 const state = {
@@ -425,6 +427,7 @@ function judge(ask, F, T, skipIdx) {
   if (state.own && (flags & 16)) return null;
   if (reviewed && reviewed < T) return "review";
   if (state.comment && commented && commented < T) return "comment";
+  if (flags & 32) return "declined";
   if (flags & 1) return "withdrawn";
   if (flags & 2) return "closedEarly";
   if ((flags & 4) || (T - asked < 7 * DAY && !AREA.prs[row][5])) return "pending";
@@ -457,7 +460,7 @@ function render() {
 
   /* per person */
   const stat = new Map();
-  const get = (i) => { if (!stat.has(i)) stat.set(i, { req: 0, num: 0, approved: 0, reviewed: 0, last: 0, review: 0, comment: 0, miss: 0, excused: 0, withdrawn: 0, closedEarly: 0, pending: 0 }); return stat.get(i); };
+  const get = (i) => { if (!stat.has(i)) stat.set(i, { req: 0, num: 0, approved: 0, reviewed: 0, last: 0, review: 0, comment: 0, miss: 0, excused: 0, withdrawn: 0, declined: 0, closedEarly: 0, pending: 0, unasked: 0, mentioned: 0 }); return stat.get(i); };
   const perPr = new Map();
   for (const a of AREA.asks) {
     const kind = judge(a, F, T, skipIdx);
@@ -466,6 +469,8 @@ function render() {
     if (!["review", "comment", "miss"].includes(kind)) continue;
     const c = kind === "miss" ? 0 : 1;
     s.req++; s.num += c;
+    if (a[5] & 64) s.unasked++;
+    if (a[5] & 128) s.mentioned++;
     perPr.set(a[1], (perPr.get(a[1]) || 0) + c);
   }
   for (const r of AREA.revs) {
@@ -499,11 +504,14 @@ function render() {
     cell("answered", p.s.num + " of " + p.s.req + " · " + f1(p.s.num / weeks) + "/wk");
     cell("approved", String(p.s.approved));
     cell("last review", p.s.last ? iso(p.s.last) : "never");
+    if (p.s.declined) cell("declined", String(p.s.declined));
     row.appendChild(meta); box.appendChild(row);
     attachTip(row, p.w, () => {
-      const st = p.s, skipped = st.excused + st.withdrawn + st.closedEarly + st.pending;
+      const st = p.s, skipped = st.excused + st.withdrawn + st.declined + st.closedEarly + st.pending;
       const lines = [["", "Asked on " + st.req + " pull requests that count: " + st.review + " answered with a review, " + st.comment + " with a comment only, " + st.miss + " not answered."]];
-      if (skipped) lines.push(["Not counted", [[st.excused, "excused (closed, or approved by two others, within a week)"], [st.withdrawn, "withdrawn"], [st.pending, "still pending"], [st.closedEarly, "closed too soon"]].filter(([n]) => n).map(([n, t]) => n + " " + t).join("; ")]);
+      if (skipped) lines.push(["Not counted", [[st.excused, "excused (closed, or approved by two others, within a week)"], [st.declined, "declined (withdrew the request themselves)"], [st.withdrawn, "withdrawn by someone else"], [st.pending, "still pending"], [st.closedEarly, "closed too soon"]].filter(([n]) => n).map(([n, t]) => n + " " + t).join("; ")]);
+      if (st.unasked) lines.push(["", st.unasked + " of these had no request: the assigner does not ask someone who has reviewed already, so the review counts as asked and answered."]);
+      if (st.mentioned) lines.push(["", "On " + st.mentioned + " the request was an @-mention by the assigner, which cannot formally request a review from someone who is not a repository collaborator."]);
       lines.push(["", "Reviewed " + st.reviewed + " pull requests here in the period, asked or not, and approved " + st.approved + "."]);
       lines.push(["Group", { regular: "regular reviewer", occasional: "occasional reviewer", silent: "silent", unrated: "too few requests to tell (fewer than " + MIN_REQ + ")" }[p.tier]]);
       return lines;
@@ -527,6 +535,7 @@ function render() {
   $("area-note").textContent = answers.length
     ? answers.length + " pull requests asked the list for review in this period. On average " + f1(mean) + " of the people asked took part."
     : "No pull request asked the list for review in this period.";
+  if (AREA.meta) $("area-note").textContent += " MAINTAINERS.yml marks this as a meta area: the assigner labels a pull request and asks these people whenever it touches the area's files, but treats it as another area's pull request when it can, and picks the assignee there. Most pull requests here are therefore not this area's own.";
   /* review cover */
   const regular = people.filter((p) => p.tier === "regular");
   const regIdx = new Set(regular.map((p) => L.indexOf(p.w)));
@@ -730,7 +739,7 @@ function areaRows() {
   return SUMMARY.areas.map((a) => {
     const w = a.w[days], covered = w.cover[0] + w.cover[1] + w.cover[2], merged = w.outcome.reduce((x, y) => x + y, 0);
     return {
-      name: a.name, shares: a.shares_label, listed: a.maintainers + a.collaborators, tiers: w.tiers, regular: w.tiers[0],
+      name: a.name, shares: a.shares_label, meta: a.meta, listed: a.maintainers + a.collaborators, tiers: w.tiers, regular: w.tiers[0],
       status: w.status, rank: STATUS_RANK[w.status], ready: w.ready, perWeek: w.ready / weeks,
       mstate: w.maintainer.state, mrank: MRANK[w.maintainer.state], onAssignee: a.on_assignee, onAssigneePrs: a.on_assignee_prs,
       perRegular: w.tiers[0] ? w.ready / weeks / w.tiers[0] : (w.ready ? Infinity : null),
@@ -750,7 +759,7 @@ function renderAll() {
   for (const b of $("sorts").children) b.setAttribute("aria-pressed", String(b.dataset.key === state.sort && +b.dataset.dir === state.dir));
   for (const b of $("statuses").children) b.setAttribute("aria-pressed", String(b.dataset.status === state.status));
   const words = state.allFilter.toLowerCase().split(/\s+/).filter(Boolean);
-  const inScope = areaRows().filter((r) => r.ready >= state.minPrs && (!state.hideShared || !r.shares) && words.every((w) => r.name.toLowerCase().includes(w)));
+  const inScope = areaRows().filter((r) => r.ready >= state.minPrs && (!state.hideShared || !(r.shares || r.meta)) && words.every((w) => r.name.toLowerCase().includes(w)));
   const rows = inScope.filter((r) => !state.status || r.status === state.status);
   const col = COLS.find((c) => c.key === state.sort);
   rows.sort((a, b) => {
@@ -798,6 +807,7 @@ function renderAll() {
     const tr = el("tr"), td = el("td", "area"), open = el("button", null, r.name); open.type = "button";
     open.addEventListener("click", () => { state.view = "area"; state.skip = ""; showView(); loadArea(r.name); window.scrollTo(0, 0); });
     td.appendChild(open);
+    if (r.meta) td.appendChild(el("span", "tag", "META AREA"));
     if (r.shares) td.appendChild(el("span", "tag", "BORROWED LABEL"));
     tr.appendChild(td);
     for (const c of COLS.slice(1)) {

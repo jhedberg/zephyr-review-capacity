@@ -89,11 +89,32 @@ The address bar holds the current view and can be shared.
   projects) sees that area's pull requests; the view of all areas hides those
   unless asked. Label names are compared without regard to case,
   as GitHub does.
+- Review requests and assignees come from the project's assigner,
+  `scripts/ci/set_assignees.py` in the Zephyr tree, and the counting follows
+  what it does. Once a pull request is out of draft it asks every Maintainer
+  and Collaborator of every area the changed files belong to, without a cap
+  (labels are capped at ten, so a person can be asked on a pull request that
+  does not carry their area's label). Someone it cannot formally request,
+  because they are not a repository collaborator, is asked with an @-mention
+  in a comment: that counts as a request here. It does not ask someone who has
+  reviewed already, so a listed person's review without a request counts as
+  asked and answered. It does not ask again someone who withdrew a request
+  themselves: such a request is shown as declined.
+- Areas marked `meta: true` in MAINTAINERS.yml (Documentation, Tests, Samples,
+  Release, Benchmarks) get their label and their people asked on any pull
+  request that touches their files, while the assigner treats the pull request
+  as another area's when it can and never reports them as short of reviewers.
+  The view of all areas marks them and hides them unless asked.
+- The assigner picks as assignee a Maintainer, other than the author, of the
+  non-platform area with the most changed files, platform areas as a fallback
+  and meta areas only when nothing else is touched. People change and add
+  assignees by hand; the page uses the assignees a pull request has now.
 - A request counts once per person and pull request, at the first request. It
   is answered when the person reviews at or after the request and before the
   end of the period (or comments, if that option is on).
 - Not counted for or against anyone: the person's own pull requests, requests
-  withdrawn without an answer, pull requests closed with less than three ready
+  withdrawn without an answer (by the person or by someone else), pull
+  requests closed with less than three ready
   days after the request, open ones with less than seven ready days since the
   request. Time as a draft is not ready time.
 - Optional excuse: a miss is not counted when the pull request closed within
@@ -139,8 +160,9 @@ Nowhere but in the published site; nothing of it is in this repository.
   `{"state": {...}, "prs": {"<number>": {...}}}`, about 1 KB per pull request
   before compression. A record holds the title, author, labels, the creation,
   close and merge times, and lists of reviews (time, login, state), comments
-  (time, login), review requests (time, login, asked or withdrawn) and draft
-  changes, and the current assignees. A review also carries what GitHub reports as the reviewer's
+  (time, login), review requests (time, login, asked or withdrawn, and for a withdrawal
+  whether the person did it themselves), the people the assigner asked in a
+  comment, draft changes, and the current assignees. A review also carries what GitHub reports as the reviewer's
   association with the repository. The workflow's token is not a member of
   the organization, so it sees only public memberships: private members are
   reported like people who are not members. Times are minutes since the epoch. Pull requests not updated for a

@@ -35,7 +35,7 @@ BOTS = {"copilot-pull-request-reviewer", "github-actions", "dependabot", "zephyr
         "sonarqubecloud", "sonarcloud"}
 
 # flags of a request record
-WITHDRAWN, CLOSED_EARLY, PENDING, EXCUSED, OWN_AREA = 1, 2, 4, 8, 16
+WITHDRAWN, CLOSED_EARLY, PENDING, EXCUSED, OWN_AREA, DECLINED, UNASKED, MENTIONED = 1, 2, 4, 8, 16, 32, 64, 128
 
 
 def is_bot(login: str) -> bool:
@@ -82,9 +82,13 @@ class PR:
         self.standing = {r[1]: r[3] for r in raw["rv"] if len(r) > 3}
         self.comments = [(t, w) for t, w in raw["cm"] if not is_bot(w) and w != self.author]
         self.requests: dict[str, list] = {}
-        for t, w, asked in raw["rq"]:
+        # a request is [time, login, 1]; a removal [time, login, 0] or, from
+        # newer fetches, [time, login, 0, removed themselves]
+        for ev in raw["rq"]:
+            t, w, asked = ev[0], ev[1], ev[2]
             if not is_bot(w) and w != self.author:
-                self.requests.setdefault(w, []).append((t, asked))
+                self.requests.setdefault(w, []).append((t, asked, ev[3] if len(ev) > 3 else 0))
+        self.mentions = {w: t for t, w in reversed(raw.get("mn", []))}
         changes = raw["dr"]
         initial = (not changes[0][1]) if changes else bool(raw["d"])
         self.draft_changes = [(self.created, initial)] + [(t, bool(d)) for t, d in changes]
@@ -144,12 +148,26 @@ def build_area(name: str, area: dict, prs: list[PR], maintains: dict, now: int,
         end = pr.closed or now
         for who in roster:
             events = sorted(pr.requests.get(who, []))
-            asked = next((t for t, a in events if a), 0)
-            if not asked:
-                continue
+            asked = next((ev[0] for ev in events if ev[1]), 0)
             flags = 0
+            if not asked and who in pr.mentions:
+                # Not a repository collaborator: the assigner cannot request
+                # the review and asks in a comment instead.
+                asked = pr.mentions[who]
+                flags |= MENTIONED
+            if not asked:
+                # The assigner does not request someone who has reviewed
+                # already. A listed person's review without a request still
+                # is taking part: count it as asked and answered.
+                first = min((t for t, w, _ in pr.reviews if w == who), default=0)
+                if not first:
+                    continue
+                asked = first
+                flags |= UNASKED
             if events and not events[-1][1]:
                 flags |= WITHDRAWN
+                if events[-1][2]:
+                    flags |= DECLINED
             ready = pr.ready_time(asked, end)
             if pr.closed and ready < CLOSED_GRACE:
                 flags |= CLOSED_EARLY
@@ -173,6 +191,7 @@ def build_area(name: str, area: dict, prs: list[PR], maintains: dict, now: int,
         for who, (first, approved, last) in by_reviewer.items():
             revs.append([idx(who), row, first, approved, last])
     return {"name": name, "status": area.get("status"), "label": primary_label(name, area),
+            "meta": 1 if area.get("meta") else 0,
             "maintainers": maintainers, "collaborators": collaborators,
             "logins": logins,
             # 2 public member of the organization, 1 outside collaborator,
@@ -184,7 +203,7 @@ def build_area(name: str, area: dict, prs: list[PR], maintains: dict, now: int,
 
 # Version of the data files' layout. The page carries the same number and
 # refuses to mix a page of one version with data of another.
-FORMAT = 4
+FORMAT = 5
 WINDOWS = (30, 90, 180, 365)
 WAITING = 14 * DAY
 REGULAR = 0.5      # a regular reviewer answers at least this share of requests
@@ -443,6 +462,7 @@ def main() -> None:
                       "people": len(data["maintainers"]) + len(data["collaborators"]),
                       "prs": len(data["prs"])})
         summary.append({"name": name, "status": area.get("status"),
+                        "meta": 1 if area.get("meta") else 0,
                         "maintainers": len(data["maintainers"]),
                         "collaborators": len(data["collaborators"]),
                         "shares_label": 1 if borrows(name, label) else 0,
