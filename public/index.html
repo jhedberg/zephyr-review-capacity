@@ -102,6 +102,15 @@ input[type="range"] { width: 100%; accent-color: var(--accent); height: 28px; ma
 .state.leads::before { border-color: var(--good); background: var(--good); }
 .state.behind::before { border-color: var(--bad); background: transparent; }
 .scroll { overflow-x: auto; }
+.scrollwrap { position: relative; }
+.scrollwrap.more-right::after { content: ""; position: absolute; top: 0; right: 0; bottom: 0; width: 22px; pointer-events: none; background: linear-gradient(to right, transparent, color-mix(in srgb, var(--ink) 20%, transparent)); }
+.scroll.proxied { scrollbar-width: none; }
+.scroll.proxied::-webkit-scrollbar { display: none; }
+.xbar { position: sticky; bottom: 0; z-index: 3; height: 22px; background: var(--surface); border-top: 1px solid var(--rule); cursor: pointer; touch-action: none; }
+.xbar i { position: absolute; top: 6px; height: 10px; border-radius: 5px; background: var(--ink-3); }
+.xbar i:hover, .xbar.drag i { background: var(--ink-2); }
+#overview th:first-child, #overview td.area { position: sticky; left: 0; z-index: 1; background: var(--surface); }
+.scrollwrap.more-left #overview th:first-child, .scrollwrap.more-left #overview td.area { box-shadow: 8px 0 8px -8px color-mix(in srgb, var(--ink) 35%, transparent); }
 table { border-collapse: collapse; width: 100%; font-size: 14px; }
 th, td { text-align: left; padding: 8px 12px 8px 0; border-top: 1px solid var(--rule); }
 thead th { border-top: 0; font: 500 11px/1.3 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); }
@@ -205,7 +214,7 @@ details.explain summary { cursor: pointer; font: 600 14px var(--font); color: va
           </dl>
           <h4 style="margin-top:16px">Maintainer: reviews, compared with others</h4>
           <dl>
-            <div><dt><span class="state leads">Reviews the most</span></dt><dd>A Maintainer reviewed at least as many of the area's pull requests as anyone else.</dd></div>
+            <div><dt><span class="state leads">Reviews most</span></dt><dd>A Maintainer reviewed at least as many of the area's pull requests as anyone else.</dd></div>
             <div><dt><span class="state second">Second</span> or <span class="state author">Writes most</span></dt><dd>Someone else reviewed more, and the Maintainer is a regular reviewer or writes half or more of the area's pull requests, which nobody can review for themselves.</dd></div>
             <div><dt><span class="state behind">Behind</span></dt><dd>Someone else reviewed more and the Maintainer is not a regular reviewer. Only reviews are counted: triage, design and release work do not show here.</dd></div>
             <div><dt><span class="state none">No Maintainer</span></dt><dd>The area lists none.</dd></div>
@@ -242,7 +251,8 @@ details.explain summary { cursor: pointer; font: 600 14px var(--font); color: va
       <div class="strip chart" id="strip"></div>
     </div>
     <p class="note">Point at a figure in the table, or tap it, for the names and counts behind it.</p>
-    <div class="scroll"><table id="overview"></table></div>
+    <p class="warn" id="overview-hint" hidden>The table is wider than this window, so columns on the right are out of view. Scroll it sideways: the scroll bar stays at the bottom of the window, and Shift with the mouse wheel works too. The Area column stays in place.</p>
+    <div class="scrollwrap"><div class="scroll"><table id="overview"></table></div><div class="xbar" id="overview-xbar" aria-hidden="true" hidden><i></i></div></div>
     <p class="note">Columns. Listed: the people on the list, then how many of them are regular, occasional and silent reviewers; a question mark counts people with too few requests to tell. Maintainer: how the Maintainer's reviewing compares with everyone else's. Not covered: the share of pull requests with fewer than two regular reviewers besides their author. Waiting on assignee: open pull requests with two approvals but none from their assignee. Counted with a comment as an answer and with the excuse rule on; open an area for the other ways of counting.</p>
   </div>
 </section>
@@ -717,12 +727,12 @@ function render() {
 /* ---------- all areas ---------- */
 const STATUS = { none: "No regular", single: "One regular", thin: "Thin", covered: "Covered" };
 const STATUS_RANK = { none: 0, single: 1, thin: 2, covered: 3 };
-const MSTATE = { none: "No Maintainer", behind: "Behind", second: "Second", author: "Writes most", leads: "Reviews the most" };
+const MSTATE = { none: "No Maintainer", behind: "Behind", second: "Second", author: "Writes most", leads: "Reviews most" };
 const MRANK = { none: 0, behind: 1, second: 2, author: 3, leads: 4 };
 const COLS = [
   { key: "name", label: "Area" },
   { key: "rank", label: "Review cover", first: 1, fmt: (v, r) => STATUS[r.status] },
-  { key: "regular", label: "Listed: regular · occas. · silent", first: 1, fmt: (v, r) => r.listed + ": " + r.tiers[0] + " · " + r.tiers[1] + " · " + r.tiers[2] + (r.tiers[3] ? " · " + r.tiers[3] + "?" : "") },
+  { key: "regular", label: "Listed: regular · occas. · silent", first: 1, fmt: (v, r) => r.listed + ": " + r.tiers[0] + "·" + r.tiers[1] + "·" + r.tiers[2] + (r.tiers[3] ? "·" + r.tiers[3] + "?" : "") },
   { key: "mrank", label: "Maintainer", first: 1, fmt: (v, r) => MSTATE[r.mstate] },
   { key: "perRegular", label: "PRs/week per regular", first: -1, fmt: (v) => v === Infinity ? "no regular" : f1(v) },
   { key: "notCovered", label: "Not covered", first: -1, fmt: pc },
@@ -793,7 +803,7 @@ function renderAll() {
   }
   const markOf = (key, x) => { const m = marks[key]; if (!m || x == null || x === Infinity) return ""; return m.worst != null && x >= m.worst ? " worst" : (m.best != null && x <= m.best ? " best" : ""); };
 
-  const table = $("overview"); table.textContent = "";
+  const table = $("overview"), scrolled = table.parentElement.scrollLeft; table.textContent = "";
   const th = el("thead"), hr = el("tr");
   for (const c of COLS) {
     const h = el("th", ["name", "rank", "mrank"].includes(c.key) ? null : "n"), b = el("button", null, c.label); b.type = "button";
@@ -824,11 +834,13 @@ function renderAll() {
     tb.appendChild(tr);
   }
   table.appendChild(tb);
+  table.parentElement.scrollLeft = scrolled;
+  fitOverview();
 }
 
 /* a small line of the open count over the period */
 function spark(values) {
-  const W = 46, H = 18, max = Math.max(1, ...values), min = Math.min(...values), span = Math.max(1, max - min);
+  const W = 38, H = 18, max = Math.max(1, ...values), min = Math.min(...values), span = Math.max(1, max - min);
   const s = svg("svg", { viewBox: "0 0 " + W + " " + H, width: W, height: H, "aria-hidden": "true", style: "vertical-align:middle;margin-right:6px;overflow:visible" });
   const x = (i) => 1 + (W - 2) * i / (values.length - 1 || 1), y = (v) => H - 2 - (H - 4) * (v - min) / span;
   svg("path", { d: values.map((v, i) => (i ? "L" : "M") + x(i).toFixed(1) + " " + y(v).toFixed(1)).join(""), fill: "none", stroke: css("--accent"), "stroke-width": 1.5, "stroke-linejoin": "round" }, s);
@@ -950,6 +962,32 @@ function drawStrip(rows, col) {
   if (finite.length) { const m = median(finite); svg("line", { x1: x(m), x2: x(m), y1: 8, y2: 50, stroke: css("--ink"), "stroke-width": 1.5 }, s); svg("text", { x: Math.min(Math.max(x(m), 50), W - 50), y: 8, "text-anchor": "middle" }, s).textContent = "median " + plain(m); }
 }
 
+/* When the table of all areas is wider than its box: say so, shade the edge that hides columns and
+   keep a scroll bar at the bottom of the window (the table's own is below its last row). */
+function fitOverview() {
+  const box = $("overview").parentElement, wrap = box.parentElement, bar = $("overview-xbar");
+  const over = box.scrollWidth - box.clientWidth > 1;
+  $("overview-hint").hidden = !over; bar.hidden = !over; box.classList.toggle("proxied", over);
+  const thumb = bar.firstElementChild, width = bar.clientWidth;
+  thumb.style.width = Math.max(40, width * box.clientWidth / box.scrollWidth) + "px";
+  thumb.style.left = (width - thumb.offsetWidth) * box.scrollLeft / Math.max(1, box.scrollWidth - box.clientWidth) + "px";
+  wrap.classList.toggle("more-right", over && box.scrollLeft + box.clientWidth < box.scrollWidth - 1);
+  wrap.classList.toggle("more-left", over && box.scrollLeft > 0);
+}
+{
+  const box = $("overview").parentElement, bar = $("overview-xbar");
+  const thumb = bar.firstElementChild;
+  let grip = null;  /* where on the thumb the pointer holds it */
+  const moveTo = (ev) => { const room = bar.clientWidth - thumb.offsetWidth; box.scrollLeft = (box.scrollWidth - box.clientWidth) * Math.max(0, Math.min(room, ev.clientX - bar.getBoundingClientRect().left - grip)) / Math.max(1, room); };
+  box.addEventListener("scroll", fitOverview);
+  bar.addEventListener("pointerdown", (ev) => {
+    grip = ev.target === thumb ? ev.clientX - thumb.getBoundingClientRect().left : thumb.offsetWidth / 2;
+    bar.setPointerCapture(ev.pointerId); bar.classList.add("drag"); moveTo(ev); ev.preventDefault();
+  });
+  bar.addEventListener("pointermove", (ev) => { if (grip != null) moveTo(ev); });
+  for (const end of ["pointerup", "pointercancel"]) bar.addEventListener(end, () => { grip = null; bar.classList.remove("drag"); });
+  window.addEventListener("resize", fitOverview);
+}
 function showView() {
   const all = state.view === "all";
   $("view-all").hidden = !all; $("view-area").hidden = all;
