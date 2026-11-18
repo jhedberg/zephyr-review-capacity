@@ -188,7 +188,7 @@ details.explain summary { cursor: pointer; font: 600 14px var(--font); color: va
             <div><dt>Listed</dt><dd>The Maintainers and Collaborators of the area in MAINTAINERS.yml. "The list" always means these people.</dd></div>
             <div><dt>Regular reviewer</dt><dd>A listed person who answers at least half of five or more review requests in the period.</dd></div>
             <div><dt>Occasional and silent</dt><dd>A listed person who took part but less than that, or not at all.</dd></div>
-            <div><dt>Candidate</dt><dd>Someone who is not listed for the area but reviewed a tenth or more of its pull requests, and at least five.</dd></div>
+            <div><dt>Candidate</dt><dd>Someone who is not listed for the area but reviewed more of its pull requests than at least half of the listed people did. Fewer than five reviews never count.</dd></div>
           </dl>
         </div>
         <div>
@@ -282,7 +282,7 @@ details.explain summary { cursor: pointer; font: 600 14px var(--font); color: va
   <div class="panel">
     <h3>Reviewers who are not listed for this area</h3>
     <p class="verdict" id="candidate-text"></p>
-    <p class="note">An approval by any member of the organization counts towards a merge, so these people already carry part of the area's review. A candidate reviewed a tenth of the area's pull requests or more in the period, and at least five. The last column can only tell public members of the organization apart: someone whose membership is private shows as "membership not visible", the same as someone who is not a member.</p>
+    <p class="note">An approval by any member of the organization counts towards a merge, so these people already carry part of the area's review. A candidate reviewed more of the area's pull requests in the period than at least half of the listed people did; fewer than five reviews never count. The last column can only tell public members of the organization apart: someone whose membership is private shows as "membership not visible", the same as someone who is not a member.</p>
     <div class="scroll"><table id="candidates"></table></div>
   </div>
 </section>
@@ -541,20 +541,28 @@ function render() {
   /* reviewers who are not listed */
   const STANDING = { 2: "public member of the organization", 1: "outside collaborator", 0: "membership not visible", "-1": "not known yet" };
   const outside = [...stat.entries()].filter(([i, s]) => !AREA.roster.has(L[i]) && (s.approved >= 3 || s.reviewed >= 5)).sort((a, b) => b[1].reviewed - a[1].reviewed || b[1].approved - a[1].approved).slice(0, 8);
-  const isCandidate = (st) => st.reviewed >= Math.max(5, readyPrs.length / 10);
+  const listedCounts = people.map((p) => p.s.reviewed);
+  const aheadOf = (st) => listedCounts.filter((n) => n < st.reviewed).length;
+  const isCandidate = (st) => st.reviewed >= 5 && 2 * aheadOf(st) >= listedCounts.length;
   const cand = [...stat.entries()].filter(([i, st]) => !AREA.roster.has(L[i]) && isCandidate(st)).sort((a, b) => b[1].reviewed - a[1].reviewed);
   const ctext = $("candidate-text"); ctext.textContent = "";
-  if (cand.length) { ctext.appendChild(document.createTextNode(cand.length === 1 ? "One candidate for the list: " : cand.length + " candidates for the list: ")); ctext.appendChild(el("span", "names", cand.map(([i]) => L[i]).join(", "))); ctext.appendChild(document.createTextNode(".")); }
-  else ctext.textContent = "No candidates in this period: nobody outside the list reviewed a tenth of the area's pull requests.";
+  if (cand.length && !listedCounts.length) {
+    ctext.appendChild(document.createTextNode("Nobody is listed for this area. People who reviewed five or more of its pull requests: "));
+    ctext.appendChild(el("span", "names", cand.map(([i]) => L[i]).join(", "))); ctext.appendChild(document.createTextNode("."));
+  } else if (cand.length) {
+    ctext.appendChild(document.createTextNode(cand.length === 1 ? "One candidate for the list: " : cand.length + " candidates for the list: "));
+    cand.forEach(([i, st], k) => { if (k) ctext.appendChild(document.createTextNode("; ")); ctext.appendChild(el("span", "names", L[i])); ctext.appendChild(document.createTextNode(", who reviewed more than " + aheadOf(st) + " of the " + listedCounts.length + " people listed")); });
+    ctext.appendChild(document.createTextNode("."));
+  } else ctext.textContent = listedCounts.length ? "No candidates in this period: nobody who is not listed reviewed more than half of the listed people did." : "Nobody is listed for this area.";
   const ctab = $("candidates"); ctab.textContent = "";
   if (outside.length) {
     const h = el("thead"), r0 = el("tr");
-    [["Reviewer", ""], ["Reviewed", "n"], ["Approved", "n"], ["Share of the area's pull requests", "n"], ["Last review", "n"], ["Candidate", ""], ["Organization", ""]].forEach(([t, c]) => r0.appendChild(el("th", c, t)));
+    [["Reviewer", ""], ["Reviewed", "n"], ["Approved", "n"], ["Share of the area's pull requests", "n"], ["Reviewed more than", "n"], ["Last review", "n"], ["Candidate", ""], ["Organization", ""]].forEach(([t, c]) => r0.appendChild(el("th", c, t)));
     h.appendChild(r0); ctab.appendChild(h);
     const body = el("tbody");
     for (const [i, st] of outside) {
       const tr = el("tr"), who = el("td", "login"); who.appendChild(profile(L[i])); tr.appendChild(who);
-      [st.reviewed, st.approved, readyPrs.length ? pc(st.reviewed / readyPrs.length) : "n/a", st.last ? iso(st.last) : ""].forEach((x) => tr.appendChild(el("td", "n", String(x))));
+      [st.reviewed, st.approved, readyPrs.length ? pc(st.reviewed / readyPrs.length) : "n/a", listedCounts.length ? aheadOf(st) + " of the " + listedCounts.length + " listed" : "nobody is listed", st.last ? iso(st.last) : ""].forEach((x) => tr.appendChild(el("td", "n", String(x))));
       tr.appendChild(el("td", null, isCandidate(st) ? "yes" : ""));
       tr.appendChild(el("td", null, STANDING[(AREA.standing || [])[i] ?? -1]));
       body.appendChild(tr);
@@ -730,7 +738,12 @@ function detailLines(key, r) {
     case "noListed": return [["", w.silent_prs + " of the " + w.asked_prs + " pull requests that asked the list got no review or comment from anyone listed."]];
     case "second": return [["", w.second_approval == null ? "No pull request got a second approval." : "Median of " + w.second_n + " pull requests, from ready for review to the second approval." + (w.first_review != null ? " The first review took " + f1(w.first_review) + " days." : "")]];
     case "waiting": return [["", r.waiting + " open pull requests are ready for review and have had no review for two weeks or more. This figure is as of now, not for the period."]];
-    case "candidates": return w.candidates.length ? [["", "Not listed, but reviewed a tenth or more of the area's pull requests:"]].concat(w.candidates.map(([who, n]) => [who, n + " reviewed"])) : [["", "Nobody who is not listed reviewed a tenth of the area's pull requests."]];
+    case "candidates": {
+      const listed = r.listed, line = ([who, n, ahead]) => [who, n + " reviewed" + (listed ? ", more than " + ahead + " of the " + listed + " listed" : "")];
+      if (!listed) return w.candidates.length ? [["", "Nobody is listed for this area. People who reviewed five or more of its pull requests:"]].concat(w.candidates.map(line)) : [["", "Nobody is listed for this area, and nobody reviewed five of its pull requests."]];
+      if (w.candidates.length) return [["", "Not listed, but reviewed more than at least half of the listed people did:"]].concat(w.candidates.map(line));
+      return [["", "Nobody who is not listed reviewed more than half of the listed people did."]].concat(w.outside.length ? [["", "The most active people who are not listed:"]].concat(w.outside.slice(0, 3).map(line)) : []);
+    }
   }
   return [];
 }

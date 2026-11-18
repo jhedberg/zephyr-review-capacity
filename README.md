@@ -33,8 +33,9 @@ reviewer, one, thin, covered), the make-up of its list, the pull requests
 arriving per week and per regular reviewer, the share of pull requests not
 covered, the share of merged pull requests whose two approvals both came from
 regular reviewers, the share nobody listed took part in, the time to the
-second approval, the pull requests waiting, and the number of people outside
-the list who review there regularly. Sort by any column, filter by cover, or
+second approval, the pull requests waiting, and the number of candidates for
+the list: people who are not listed but reviewed more of the area's pull
+requests than at least half of the listed people did. Sort by any column, filter by cover, or
 use "Show first"; a legend above the table defines each choice. The cover state
 carries a fixed colour (red for no or one regular reviewer, green for
 covered). In the three columns with a real spread (pull requests per regular

@@ -174,6 +174,7 @@ WAITING = 14 * DAY
 REGULAR = 0.5      # a regular reviewer answers at least this share of requests
 MIN_REQUESTS = 5   # with fewer requests there is too little to tell
 THIN = 0.2         # share of pull requests not covered that makes cover thin
+MIN_CANDIDATE = 5  # reviews below which nobody is a candidate
 
 
 def median(values: list) -> float | None:
@@ -277,10 +278,17 @@ def summarize(data: dict, now: int) -> dict:
                 outcome[3] += 1
         second = [max(0, p[7] - p[3]) / DAY for p in ready if p[7]]
         first_review = [max(0, p[6] - p[3]) / DAY for p in ready if p[6]]
-        # unlisted people who review here regularly
-        bar = max(5, len(ready) / 10)
-        candidates = sorted(((n, logins[w]) for w, n in reviewed_by.items()
-                             if w not in listed and n >= bar), reverse=True)
+        # Candidates for the list: people who are not listed but reviewed more
+        # pull requests here than at least half of the listed people did.
+        listed_counts = [reviewed_by.get(w, 0) for w in roster]
+        outside = []
+        for w, n in reviewed_by.items():
+            if w in listed or n < MIN_CANDIDATE:
+                continue
+            ahead = sum(1 for count in listed_counts if count < n)
+            outside.append((n, logins[w], ahead))
+        outside.sort(reverse=True)
+        candidates = [c for c in outside if 2 * c[2] >= len(roster)]
         out["w"][str(days)] = {
             "ready": len(ready),
             "tiers": [len(tiers["regular"]), len(tiers["occasional"]), len(tiers["silent"]),
@@ -294,7 +302,9 @@ def summarize(data: dict, now: int) -> dict:
             "first_review": None if not first_review else round(median(first_review), 2),
             "second_approval": None if not second else round(median(second), 2),
             "second_n": len(second),
-            "candidates": [[w, n] for n, w in candidates[:8]], "candidate_count": len(candidates),
+            "candidates": [[w, n, ahead] for n, w, ahead in candidates[:8]],
+            "candidate_count": len(candidates),
+            "outside": [[w, n, ahead] for n, w, ahead in outside[:5]],
         }
     return out
 
